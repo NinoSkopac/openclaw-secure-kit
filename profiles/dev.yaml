@@ -1,0 +1,15 @@
+openclaw:
+  webui:
+    enabled: true
+  approvals:
+    exec: allow
+snapper:
+  enabled: true
+network:
+  egress_default: allow
+  allow:
+    - localhost
+    - npmjs.com
+  allow_ports:
+    - 3000
+    - 5432

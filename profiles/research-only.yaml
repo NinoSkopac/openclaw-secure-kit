@@ -1,0 +1,9 @@
+openclaw:
+  approvals:
+    exec: require
+network:
+  allow:
+    - arxiv.org
+    - paperswithcode.com
+  allow_ports:
+    - 443

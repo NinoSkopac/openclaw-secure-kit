@@ -1,0 +1,15 @@
+openclaw:
+  webui:
+    enabled: false
+  approvals:
+    exec: require
+snapper:
+  enabled: true
+network:
+  egress_default: deny
+  allow:
+    - github.com
+    - registry.npmjs.org
+  allow_ports:
+    - 22
+    - 443
