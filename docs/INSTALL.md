@@ -5,7 +5,7 @@
 ## Clone + install
 
 ```bash
-git clone <REPO_URL> openclaw-secure-kit
+git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh uninstall.sh
 ./install.sh
@@ -43,11 +43,10 @@ Show installer source version (git commit if available):
 ./install.sh --version
 ```
 
-## Curl | bash placeholder
+## Curl | bash
 
 ```bash
-curl -fsSL <INSTALL_SH_URL> | bash
-curl -fsSL <INSTALL_SH_URL> | bash -s -- --dry-run
+curl -fsSL https://raw.githubusercontent.com/NinoSkopac/openclaw-secure-kit/refs/heads/main/install.sh | bash
 ```
 
 ## Uninstall
