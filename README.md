@@ -1,14 +1,51 @@
 # openclaw-secure-kit
 
-`openclaw-secure-kit` provides a profile-driven setup for running OpenClaw on Ubuntu 22.04/24.04 with Docker, DNS allowlist controls, host firewall enforcement, and a verifier report (`security-report.md`).
-If you want a hardened setup fast, see Services.
+[![CI](https://img.shields.io/github/actions/workflow/status/NinoSkopac/openclaw-secure-kit/ci.yml?branch=main&label=CI)](https://github.com/NinoSkopac/openclaw-secure-kit/actions/workflows/ci.yml)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)
+![Docker required](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)
 
-## What this is (and isn’t)
+Secure-by-default, profile-driven hardening for running OpenClaw on Ubuntu with verifiable egress controls.
 
-This kit is **defense-in-depth hardening** for running OpenClaw safely on a Linux host.
-It aims to make “secure-by-default” the easy path and to produce a repeatable verification report.
+## What you get
 
-It is **not** a guarantee that bypass is impossible. See the Security model and Threat model below.
+- Profile-driven install output under `out/<profile>/` with externalized secrets and pinned image tags.
+- DNS allowlist + host firewall controls with loopback-first gateway exposure by default.
+- One-command verification (`ocs doctor`) that writes a repeatable `security-report.md` (PASS/WARN/FAIL).
+
+## Quickstart
+
+```bash
+git clone <REPO_URL> openclaw-secure-kit
+cd openclaw-secure-kit
+chmod +x install.sh
+./install.sh
+ocs install --profile research-only
+docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+sudo ocs doctor --profile research-only
+```
+
+## Learn more
+
+- Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
+- Services: [`docs/SERVICES.md`](docs/SERVICES.md)
+- Quickstart guide: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
+- Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
+
+## Who is this for?
+
+- Teams that want OpenClaw access without giving agents full internet egress.
+- Organizations running agents for contractors or internal teams that need guardrails by default.
+- Operators who need a repeatable security report for internal policy/compliance reviews.
+
+## Verification snapshot
+
+```text
+Version: 0.1.0 (9ff1fc3)
+Wrote security report to out/research-only/security-report.md
+PASS: 18  WARN: 2  FAIL: 0
+```
+
+`WARN` includes the known direct-to-IP HTTPS caveat.
 
 ## Security model
 
@@ -22,32 +59,6 @@ v1 focuses on:
 Important caveat: direct-to-IP HTTPS may still work (for example, `https://1.1.1.1`) even when non-allowlisted domains are blocked by DNS policy. Do not treat v1 as an impossible-bypass model.
 
 See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, limitations, and hardening options.
-
-## Quickstart
-
-- Quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
-- Install: [`docs/INSTALL.md`](docs/INSTALL.md)
-
-## Sample output
-
-Typical `security-report.md` excerpt:
-
-```md
-# Security Report
-
-- Profile: `research-only`
-- Summary: 6 PASS / 1 WARN / 1 FAIL
-
-## Checks
-- PASS: Gateway not public (no 0.0.0.0 binding) — ports are localhost-only.
-- PASS: Container runs as non-root — uid=65532
-- PASS: Docker socket not mounted — No docker socket mount detected in compose or runtime.
-- PASS: DNS forced through dns_allowlist — runtime dns=["172.29.0.53"]
-- PASS: Egress blocked to non-allowlisted domains — curl https://example.com blocked as expected
-- PASS: Egress works to allowlisted domains — curl https://arxiv.org succeeded
-- WARN: Direct-to-IP HTTPS reachable — DNS allowlist blocks domains, but direct-to-IP HTTPS may still work.
-- FAIL: Firewall service enabled — disabled
-```
 
 ## Maintainers
 
