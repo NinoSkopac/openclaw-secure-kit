@@ -15,6 +15,12 @@ SUDO=""
 APT_UPDATED=0
 CURRENT_STEP="startup"
 
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  echo "${LOG_PREFIX} ERROR: run this installer with sudo:"
+  echo "${LOG_PREFIX}   sudo ./install.sh"
+  exit 1
+fi
+
 log() {
   echo "${LOG_PREFIX} $*"
 }

@@ -19,6 +19,7 @@ git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh
 sudo ./install.sh
+
 ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 sudo ocs doctor --profile research-only
