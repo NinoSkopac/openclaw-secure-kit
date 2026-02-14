@@ -15,7 +15,7 @@ Secure-by-default, profile-driven hardening for running OpenClaw on Ubuntu with 
 ## Quickstart
 
 ```bash
-git clone <REPO_URL> openclaw-secure-kit
+git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh
 ./install.sh
