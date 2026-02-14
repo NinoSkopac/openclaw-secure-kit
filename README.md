@@ -11,6 +11,16 @@ Important caveat: direct-to-IP HTTPS may still work (for example, `https://1.1.1
 
 See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, limitations, and hardening options.
 
+## Public Release Checklist
+
+Before making the repo public, run [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md).
+
+- Secure-by-default baseline is required.
+- Gateway/bridge bind to loopback by default.
+- Gateway token remains externalized in `.env` (not embedded in compose).
+- Image tags are pinned (no `latest`).
+- Known limitation: direct-to-IP HTTPS may still work and should remain a `WARN` in default mode.
+
 ## Sample output
 
 Typical `security-report.md` excerpt:

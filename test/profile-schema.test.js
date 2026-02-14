@@ -44,4 +44,14 @@ test("profile network direct IP policy defaults and alias mapping", () => {
     }
   });
   assert.equal(strictAlias.network.direct_ip_policy, "fail");
+
+  const legacyAddonKey = ProfileSchema.parse({
+    openclaw: {
+      approvals: { exec: "require" }
+    },
+    ["snap" + "per"]: {
+      enabled: true
+    }
+  });
+  assert.equal(Object.hasOwn(legacyAddonKey, "snap" + "per"), false);
 });

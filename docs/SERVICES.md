@@ -33,7 +33,7 @@ Pricing: `<your pricing here>`
 Best for organizations with domain-specific access and compliance requirements.
 
 Deliverables:
-- custom profile design (`network.allow`, approvals, Snapper usage patterns)
+- custom profile design (`network.allow`, approvals, direct IP policy, egress posture)
 - policy tuning based on workflows and threat tolerance
 - validation checklist and report outputs for each tuned profile
 

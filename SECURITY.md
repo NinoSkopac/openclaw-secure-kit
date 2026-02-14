@@ -19,3 +19,8 @@ Use this process:
 - We will acknowledge receipt as soon as possible.
 - We will triage severity and determine remediation priority.
 - We will publish a fix and advisory after validation and coordinated disclosure.
+
+## Automated Security Checks
+
+- CI runs a secret scanning workflow (`.github/workflows/secret-scan.yml`) on push and pull requests.
+- The workflow uses Gitleaks to detect likely committed credentials/tokens before release.

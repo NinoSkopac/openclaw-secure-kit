@@ -43,12 +43,7 @@ export const ProfileSchema = z.object({
       exec: z.enum(["allow", "require", "deny"])
     })
   }),
-  snapper: z
-    .object({
-      enabled: z.boolean().default(false)
-    })
-    .default({}),
   network: NetworkSchema
-});
+}).strip();
 
 export type ProfileConfig = z.infer<typeof ProfileSchema>;
