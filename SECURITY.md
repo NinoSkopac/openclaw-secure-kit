@@ -22,5 +22,6 @@ Use this process:
 
 ## Automated Security Checks
 
-- CI runs a secret scanning workflow (`.github/workflows/secret-scan.yml`) on push and pull requests.
-- The workflow uses Gitleaks to detect likely committed credentials/tokens before release.
+- CI runs Gitleaks as part of `.github/workflows/ci.yml` on pull requests and pushes to `main`.
+- Gitleaks findings fail CI.
+- Contributors must not commit real credentials, tokens, private keys, or `.env` secrets.

@@ -138,11 +138,11 @@ Commands:
 ```bash
 ls .github/workflows
 rg -n 'name:\s+CI|npm ci|npm run build|npm test' .github/workflows/*.yml
-rg -n 'gitleaks|secret' .github/workflows/*.yml
+rg -n 'gitleaks' .github/workflows/ci.yml
 ```
-PASS: CI workflow covers install/build/test and a secret-scan workflow exists.  
-FAIL: missing build/test or missing secret scan.  
-Minimal patch: update `.github/workflows/ci.yml`; add `.github/workflows/secret-scan.yml`.
+PASS: CI workflow covers install/build/test and includes a gitleaks step.  
+FAIL: missing build/test or missing gitleaks in CI.  
+Minimal patch: update `.github/workflows/ci.yml` with a gitleaks job.
 
 ## 15) Are disclosure and release-gate docs discoverable?
 Commands:
