@@ -28,10 +28,6 @@ See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, 
 - Quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
 - Install: [`docs/INSTALL.md`](docs/INSTALL.md)
 
-## Development
-
-Maintainers: see [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md) before tagging a release.
-
 ## Sample output
 
 Typical `security-report.md` excerpt:
@@ -51,3 +47,8 @@ Typical `security-report.md` excerpt:
 - PASS: Egress works to allowlisted domains — curl https://arxiv.org succeeded
 - WARN: Direct-to-IP HTTPS reachable — DNS allowlist blocks domains, but direct-to-IP HTTPS may still work.
 - FAIL: Firewall service enabled — disabled
+```
+
+## Maintainers
+
+Before tagging a release, run [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md).
