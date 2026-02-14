@@ -27,11 +27,13 @@ Minimal patch: fix compose env interpolation in `src/install-artifacts.ts`, add/
 ## 3) Are image tags pinned (no `latest`)?
 Commands:
 ```bash
-rg -n '^OPENCLAW_TAG=2026\.2\.13$' out/research-only/.env
-rg -n '^OPENCLAW_TAG=latest$|\$\{OPENCLAW_IMAGE\}:latest|image:\s+.*:latest' out/research-only/.env out/research-only/docker-compose.yml src/install-artifacts.ts || true
+rg -n '^OPENCLAW_TAG=' out/research-only/.env
+TAG="$(grep '^OPENCLAW_TAG=' out/research-only/.env | cut -d= -f2-)"
+test -n "$TAG" && test "${TAG,,}" != "latest"
+rg -n '\$\{OPENCLAW_IMAGE\}:\$\{OPENCLAW_TAG\}' out/research-only/docker-compose.yml
 ```
-PASS: pinned tag found; no `latest` image/tag usages.  
-FAIL: any `latest` usage in generated/runtime files.  
+PASS: `OPENCLAW_TAG` is non-empty and not `latest`; compose uses `${OPENCLAW_IMAGE}:${OPENCLAW_TAG}`.  
+FAIL: empty tag, `latest` (case-insensitive), or missing tag interpolation.  
 Minimal patch: enforce pinned defaults in `src/constants.ts` and `src/install-artifacts.ts`; update docs in `README.md`.
 
 ## 4) Is gateway loopback-only by default?
