@@ -11,3 +11,11 @@ test("profile files exist", () => {
   assert.equal(fs.existsSync("profiles/ops-lite.yaml"), true);
   assert.equal(fs.existsSync("profiles/dev.yaml"), true);
 });
+
+test("systemd firewall unit template exists", () => {
+  assert.equal(fs.existsSync("systemd/openclaw-secure-firewall.service"), true);
+});
+
+test("verifier module exists", () => {
+  assert.equal(fs.existsSync("src/verifier.ts"), true);
+});

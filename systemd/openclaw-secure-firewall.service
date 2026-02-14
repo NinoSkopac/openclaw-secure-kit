@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenClaw secure nftables firewall
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/nft delete table inet openclaw_secure
+ExecStart=/usr/sbin/nft -f /etc/openclaw/openclaw-firewall.nft
+ExecStop=-/usr/sbin/nft delete table inet openclaw_secure
+
+[Install]
+WantedBy=multi-user.target

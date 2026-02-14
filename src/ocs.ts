@@ -8,6 +8,8 @@ function printUsage(): void {
   console.log("Usage: ocs <command> [options]");
   console.log(`Commands: ${ALL_COMMANDS}`);
   console.log("Install options: --profile <name>");
+  console.log("Verify options: --profile <name> --output <path>");
+  console.log("apply-firewall options: --profile <name>");
 }
 
 function isValidCommand(command: string): command is OcsCommand {
