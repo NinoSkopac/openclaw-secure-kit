@@ -13,12 +13,12 @@ Secure-by-default, profile-driven hardening for running OpenClaw on Ubuntu with 
 - One-command verification (`ocs doctor`) that writes a repeatable `security-report.md` (PASS/WARN/FAIL).
 
 ## Quickstart
-
+> **Why `sudo`?** The installer sets up system dependencies and host security controls (nftables/systemd) and installs to `/opt`, which requires root on Ubuntu.
 ```bash
 git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 sudo ocs doctor --profile research-only
