@@ -35,6 +35,7 @@ type ComposeDoc = {
 export type VerifyProfileOptions = {
   ensureUp?: boolean;
   regenerateArtifacts?: boolean;
+  directIpPolicyOverride?: "warn" | "fail";
 };
 
 export type VerifyProfileSummary = {
@@ -50,6 +51,8 @@ export type VerifyProfileSummary = {
 
 const DIRECT_IP_WARN_TEXT =
   "DNS allowlist blocks domains, but direct-to-IP HTTPS may still work. For stronger enforcement, tighten outbound 443 to an IP allowlist or force all egress through a proxy/egress gateway.";
+const DIRECT_IP_HARDENING_TEXT =
+  "To actually block direct-to-IP, enable hardened egress mode (proxy-only egress).";
 const DEFAULT_GATEWAY_TOKEN_PLACEHOLDER = "change-me";
 const GATEWAY_DEFAULT_PORT = 18789;
 const GATEWAY_MIN_PORT = 18789;
@@ -787,8 +790,14 @@ function runCheckEgressAllowed(
   };
 }
 
-function runCheckDirectToIpHttpsReachable(composePath: string, runtimeService: string): CheckResult {
+function runCheckDirectToIpHttpsReachable(
+  composePath: string,
+  runtimeService: string,
+  directIpPolicy: "warn" | "fail"
+): CheckResult {
   const target = "https://1.1.1.1";
+  const successStatus: CheckStatus = directIpPolicy === "fail" ? "FAIL" : "WARN";
+  const guidance = `${DIRECT_IP_WARN_TEXT} ${DIRECT_IP_HARDENING_TEXT}`;
 
   const hasCurl = runCompose(composePath, [
     "exec",
@@ -815,8 +824,9 @@ function runCheckDirectToIpHttpsReachable(composePath: string, runtimeService: s
     if (directResult.status === 0) {
       return {
         name: "Direct-to-IP HTTPS reachable",
-        status: "WARN",
-        details: `${DIRECT_IP_WARN_TEXT} Method=${runtimeService} curl to ${target} succeeded.`
+        status: successStatus,
+        details:
+          `${guidance} Policy=${directIpPolicy}. Method=${runtimeService} curl to ${target} succeeded.`
       };
     }
 
@@ -861,8 +871,9 @@ function runCheckDirectToIpHttpsReachable(composePath: string, runtimeService: s
   if (fallbackResult.status === 0) {
     return {
       name: "Direct-to-IP HTTPS reachable",
-      status: "WARN",
-      details: `${DIRECT_IP_WARN_TEXT} Method=fallback curlimages/curl on network '${networkResult.network}' to ${target} succeeded.`
+      status: successStatus,
+      details:
+        `${guidance} Policy=${directIpPolicy}. Method=fallback curlimages/curl on network '${networkResult.network}' to ${target} succeeded.`
     };
   }
 
@@ -947,6 +958,7 @@ export function verifyProfile(
   options: VerifyProfileOptions = {}
 ): VerifyProfileSummary {
   const profile = loadProfile(profileName);
+  const directIpPolicy = options.directIpPolicyOverride ?? profile.network.direct_ip_policy;
   const outDir =
     options.regenerateArtifacts === false
       ? path.resolve(process.cwd(), "out", profileName)
@@ -1027,7 +1039,7 @@ export function verifyProfile(
       runCheckDnsForced(composePath, compose, runtimeService as string),
       runCheckEgressBlocked(composePath, profile.network.allow, runtimeService as string),
       runCheckEgressAllowed(composePath, profile.network.allow, runtimeService as string),
-      runCheckDirectToIpHttpsReachable(composePath, runtimeService as string)
+      runCheckDirectToIpHttpsReachable(composePath, runtimeService as string, directIpPolicy)
     );
   }
 

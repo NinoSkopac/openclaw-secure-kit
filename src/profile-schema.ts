@@ -8,6 +8,23 @@ const DomainSchema = z
   .regex(DOMAIN_RE, "domain contains unsupported characters");
 
 const PortSchema = z.number().int().min(1).max(65535);
+const DirectIpPolicySchema = z.enum(["warn", "fail"]);
+
+const NetworkSchema = z
+  .object({
+    egress_default: z.enum(["deny", "allow"]).default("deny"),
+    allow: z.array(DomainSchema).default([]),
+    allow_ports: z.array(PortSchema).default([]),
+    direct_ip_policy: DirectIpPolicySchema.default("warn"),
+    strict_ip_egress: z.boolean().optional()
+  })
+  .default({})
+  .transform((network) => ({
+    egress_default: network.egress_default,
+    allow: network.allow,
+    allow_ports: network.allow_ports,
+    direct_ip_policy: network.strict_ip_egress === true ? "fail" : network.direct_ip_policy
+  }));
 
 export const ProfileSchema = z.object({
   openclaw: z.object({
@@ -31,13 +48,7 @@ export const ProfileSchema = z.object({
       enabled: z.boolean().default(false)
     })
     .default({}),
-  network: z
-    .object({
-      egress_default: z.enum(["deny", "allow"]).default("deny"),
-      allow: z.array(DomainSchema).default([]),
-      allow_ports: z.array(PortSchema).default([])
-    })
-    .default({})
+  network: NetworkSchema
 });
 
 export type ProfileConfig = z.infer<typeof ProfileSchema>;

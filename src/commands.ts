@@ -77,7 +77,10 @@ const install: CommandHandler = (args) => {
 const verifyCommand: CommandHandler = (args) => {
   const profileName = parseOptionArg("verify", "profile", args);
   const outputPath = parseOptionArg("verify", "output", args);
-  const summary = verifyProfile(profileName, outputPath);
+  const strictIpEgress = hasFlag("strict-ip-egress", args);
+  const summary = verifyProfile(profileName, outputPath, {
+    directIpPolicyOverride: strictIpEgress ? "fail" : undefined
+  });
 
   console.log(`Wrote security report to ${outputPath}`);
   console.log(`PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
@@ -90,7 +93,11 @@ const verifyCommand: CommandHandler = (args) => {
 const doctorCommand: CommandHandler = (args) => {
   const profileName = parseOptionArg("doctor", "profile", args);
   const noUp = hasFlag("no-up", args);
-  const summary = doctorProfile(profileName, { noUp });
+  const strictIpEgress = hasFlag("strict-ip-egress", args);
+  const summary = doctorProfile(profileName, {
+    noUp,
+    directIpPolicyOverride: strictIpEgress ? "fail" : undefined
+  });
 
   const relativeReportPath = path.relative(process.cwd(), summary.reportPath) || summary.reportPath;
   console.log(`Version: ${summary.version} (${summary.commit})`);

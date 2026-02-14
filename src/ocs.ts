@@ -8,8 +8,8 @@ function printUsage(): void {
   console.log("Usage: ocs <command> [options]");
   console.log(`Commands: ${ALL_COMMANDS}`);
   console.log("Install options: --profile <name>");
-  console.log("Verify options: --profile <name> --output <path>");
-  console.log("Doctor options: --profile <name> [--no-up]");
+  console.log("Verify options: --profile <name> --output <path> [--strict-ip-egress]");
+  console.log("Doctor options: --profile <name> [--no-up] [--strict-ip-egress]");
   console.log("apply-firewall options: --profile <name>");
 }
 

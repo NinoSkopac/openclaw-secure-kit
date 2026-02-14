@@ -18,6 +18,7 @@ type CommandResult = SpawnSyncReturns<string> & {
 
 export type DoctorOptions = {
   noUp?: boolean;
+  directIpPolicyOverride?: "warn" | "fail";
 };
 
 export type DoctorSummary = {
@@ -214,7 +215,8 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
     if (canRunVerify) {
       const verifySummary = verifyProfile(profileName, reportPath, {
         ensureUp: options.noUp !== true,
-        regenerateArtifacts: false
+        regenerateArtifacts: false,
+        directIpPolicyOverride: options.directIpPolicyOverride
       });
       results.push(...verifySummary.results);
       diagnostics.push(...verifySummary.diagnostics);
