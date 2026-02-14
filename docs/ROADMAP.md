@@ -9,7 +9,7 @@
 ## v2
 
 - true no-bypass egress model (proxy-only outbound path)
-- Snapper integration improvements
+- hardened egress policy packs and operational tooling
 - multi-tenant broker exploration
 
 ## v3
