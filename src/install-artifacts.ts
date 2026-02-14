@@ -1,10 +1,51 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 
-import { OPENCLAW_DNS_RESOLVER_IP, OPENCLAW_NETWORK_SUBNET } from "./constants";
+import {
+  OPENCLAW_DNS_RESOLVER_IP,
+  OPENCLAW_IMAGE_DEFAULT,
+  OPENCLAW_NETWORK_SUBNET,
+  OPENCLAW_TAG_DEFAULT
+} from "./constants";
 import { ProfileConfig } from "./profile-schema";
 const DNS_UPSTREAM_SERVERS = ["1.1.1.1", "8.8.8.8"];
+const DEFAULT_GATEWAY_TOKEN_PLACEHOLDER = "change-me";
+const GATEWAY_DEFAULT_PORT = 18789;
+const GATEWAY_MIN_PORT = 18789;
+const GATEWAY_MAX_PORT = 18889;
+const BRIDGE_DEFAULT_PORT = 18790;
+const BRIDGE_MIN_PORT = 18790;
+const BRIDGE_MAX_PORT = 18890;
+
+type InstallEnvResult = {
+  envContent: string;
+  gatewayTokenGenerated: boolean;
+  selectedGatewayPort: number;
+  selectedBridgePort: number;
+  portsAutoAdjusted: boolean;
+};
+
+type BuildEnvOptions = {
+  autoGenerateGatewayToken: boolean;
+  autoAdjustPorts: boolean;
+};
+
+export type InstallArtifactsResult = {
+  outDir: string;
+  envPath: string;
+  gatewayTokenGenerated: boolean;
+  selectedGatewayPort: number;
+  selectedBridgePort: number;
+  portsAutoAdjusted: boolean;
+};
+
+export type WriteInstallArtifactsOptions = {
+  autoGenerateGatewayToken?: boolean;
+  autoAdjustPorts?: boolean;
+};
 
 function normalizedAllowlist(profile: ProfileConfig): string[] {
   return [...new Set(profile.network.allow.map((domain) => domain.toLowerCase()))];
@@ -33,6 +74,322 @@ function buildDnsmasqConfig(profile: ProfileConfig): string {
   return `${lines.join("\n")}\n`;
 }
 
+function parseEnvFile(source: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  const lines = source.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const equalsIndex = line.indexOf("=");
+    if (equalsIndex <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, equalsIndex).trim();
+    let value = line.slice(equalsIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+
+  return env;
+}
+
+function parsePortValue(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function commandExists(command: string): boolean {
+  const result = spawnSync("sh", ["-lc", `command -v ${command}`], {
+    stdio: "ignore"
+  });
+  return result.status === 0;
+}
+
+function getListeningPortsViaSs(): Set<number> {
+  const ports = new Set<number>();
+  if (!commandExists("ss")) {
+    return ports;
+  }
+
+  const result = spawnSync("ss", ["-H", "-ltn"], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) {
+    return ports;
+  }
+
+  const lines = result.stdout.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const fields = trimmed.split(/\s+/);
+    const localAddress = fields[3] ?? "";
+    const match = localAddress.match(/:(\d+)$/);
+    if (!match) {
+      continue;
+    }
+
+    const port = Number.parseInt(match[1], 10);
+    if (Number.isInteger(port)) {
+      ports.add(port);
+    }
+  }
+
+  return ports;
+}
+
+function getListeningPortsViaLsof(): Set<number> {
+  const ports = new Set<number>();
+  if (!commandExists("lsof")) {
+    return ports;
+  }
+
+  const result = spawnSync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN"], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) {
+    return ports;
+  }
+
+  const lines = result.stdout.split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/:(\d+)\s+\(LISTEN\)/);
+    if (!match) {
+      continue;
+    }
+
+    const port = Number.parseInt(match[1], 10);
+    if (Number.isInteger(port)) {
+      ports.add(port);
+    }
+  }
+
+  return ports;
+}
+
+function getDockerPublishedHostPorts(): Set<number> {
+  const ports = new Set<number>();
+  if (!commandExists("docker")) {
+    return ports;
+  }
+
+  const result = spawnSync("docker", ["ps", "--format", "{{.Ports}}"], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) {
+    return ports;
+  }
+
+  const lines = result.stdout.split(/\r?\n/);
+  for (const line of lines) {
+    const mappingRegex = /(?:^|,\s*)([^,]+)->\d+\/\w+/g;
+    let match = mappingRegex.exec(line);
+    while (match) {
+      const hostSide = match[1].trim();
+      const hostPortMatch = hostSide.match(/:(\d+)$/);
+      if (hostPortMatch) {
+        const port = Number.parseInt(hostPortMatch[1], 10);
+        if (Number.isInteger(port)) {
+          ports.add(port);
+        }
+      }
+      match = mappingRegex.exec(line);
+    }
+  }
+
+  return ports;
+}
+
+function findNextFreePort(
+  start: number,
+  end: number,
+  occupiedPorts: Set<number>,
+  reservedPorts: Set<number>
+): number | null {
+  for (let port = start; port <= end; port += 1) {
+    if (reservedPorts.has(port) || occupiedPorts.has(port)) {
+      continue;
+    }
+    return port;
+  }
+
+  return null;
+}
+
+type SelectedHostPorts = {
+  gatewayPort: number;
+  bridgePort: number;
+  autoAdjusted: boolean;
+};
+
+function resolveHostPorts(
+  requestedGatewayPortRaw: string | undefined,
+  requestedBridgePortRaw: string | undefined,
+  autoAdjustPorts: boolean
+): SelectedHostPorts {
+  const requestedGatewayPort = parsePortValue(requestedGatewayPortRaw);
+  const requestedBridgePort = parsePortValue(requestedBridgePortRaw);
+
+  if (!autoAdjustPorts) {
+    return {
+      gatewayPort: requestedGatewayPort ?? GATEWAY_DEFAULT_PORT,
+      bridgePort: requestedBridgePort ?? BRIDGE_DEFAULT_PORT,
+      autoAdjusted: false
+    };
+  }
+
+  const occupiedPorts = new Set<number>([
+    ...getListeningPortsViaSs(),
+    ...getListeningPortsViaLsof(),
+    ...getDockerPublishedHostPorts()
+  ]);
+  const reservedPorts = new Set<number>();
+
+  const gatewayRequestedIsUsable =
+    requestedGatewayPort !== null &&
+    requestedGatewayPort >= GATEWAY_MIN_PORT &&
+    requestedGatewayPort <= GATEWAY_MAX_PORT &&
+    !occupiedPorts.has(requestedGatewayPort);
+  const gatewayPort =
+    gatewayRequestedIsUsable
+      ? requestedGatewayPort
+      : findNextFreePort(GATEWAY_MIN_PORT, GATEWAY_MAX_PORT, occupiedPorts, reservedPorts);
+
+  if (gatewayPort === null) {
+    throw new Error(`No available gateway port in range ${GATEWAY_MIN_PORT}-${GATEWAY_MAX_PORT}.`);
+  }
+  reservedPorts.add(gatewayPort);
+
+  const bridgeRequestedIsUsable =
+    requestedBridgePort !== null &&
+    requestedBridgePort >= BRIDGE_MIN_PORT &&
+    requestedBridgePort <= BRIDGE_MAX_PORT &&
+    !occupiedPorts.has(requestedBridgePort) &&
+    !reservedPorts.has(requestedBridgePort);
+  const bridgePort =
+    bridgeRequestedIsUsable
+      ? requestedBridgePort
+      : findNextFreePort(BRIDGE_MIN_PORT, BRIDGE_MAX_PORT, occupiedPorts, reservedPorts);
+
+  if (bridgePort === null) {
+    throw new Error(`No available bridge port in range ${BRIDGE_MIN_PORT}-${BRIDGE_MAX_PORT}.`);
+  }
+
+  const autoAdjusted = gatewayPort !== (requestedGatewayPort ?? GATEWAY_DEFAULT_PORT)
+    || bridgePort !== (requestedBridgePort ?? BRIDGE_DEFAULT_PORT);
+
+  return {
+    gatewayPort,
+    bridgePort,
+    autoAdjusted
+  };
+}
+
+function buildStrongGatewayToken(): string {
+  // 36 random bytes => 48 base64url characters (>= 32 chars required).
+  return randomBytes(36).toString("base64url");
+}
+
+function buildEnvFile(existingEnvSource: string | null, options: BuildEnvOptions): InstallEnvResult {
+  const existing = existingEnvSource ? parseEnvFile(existingEnvSource) : {};
+  const defaults: Record<string, string> = {
+    OPENCLAW_IMAGE: OPENCLAW_IMAGE_DEFAULT,
+    OPENCLAW_TAG: OPENCLAW_TAG_DEFAULT,
+    OPENCLAW_GATEWAY_TOKEN: DEFAULT_GATEWAY_TOKEN_PLACEHOLDER,
+    OPENCLAW_GATEWAY_PORT: String(GATEWAY_DEFAULT_PORT),
+    OPENCLAW_BRIDGE_HOST_PORT: String(BRIDGE_DEFAULT_PORT),
+    OPENCLAW_GATEWAY_CONTAINER_PORT: String(GATEWAY_DEFAULT_PORT),
+    OPENCLAW_BRIDGE_CONTAINER_PORT: String(BRIDGE_DEFAULT_PORT),
+    TELEGRAM_BOT_TOKEN: "",
+    TELEGRAM_CHAT_ID: ""
+  };
+  const merged: Record<string, string> = { ...defaults, ...existing };
+  delete merged.OPENCLAW_GATEWAY_BIND;
+
+  if (merged.OPENCLAW_TAG.toLowerCase() === "latest") {
+    merged.OPENCLAW_TAG = OPENCLAW_TAG_DEFAULT;
+  }
+
+  let gatewayTokenGenerated = false;
+  const currentToken = merged.OPENCLAW_GATEWAY_TOKEN?.trim() ?? "";
+  if (!currentToken || currentToken === DEFAULT_GATEWAY_TOKEN_PLACEHOLDER) {
+    if (options.autoGenerateGatewayToken) {
+      merged.OPENCLAW_GATEWAY_TOKEN = buildStrongGatewayToken();
+      gatewayTokenGenerated = true;
+    } else {
+      merged.OPENCLAW_GATEWAY_TOKEN = DEFAULT_GATEWAY_TOKEN_PLACEHOLDER;
+    }
+  }
+
+  const selectedPorts = resolveHostPorts(
+    merged.OPENCLAW_GATEWAY_PORT,
+    merged.OPENCLAW_BRIDGE_HOST_PORT,
+    options.autoAdjustPorts
+  );
+  merged.OPENCLAW_GATEWAY_PORT = String(selectedPorts.gatewayPort);
+  merged.OPENCLAW_BRIDGE_HOST_PORT = String(selectedPorts.bridgePort);
+
+  const preferredOrder = [
+    "OPENCLAW_IMAGE",
+    "OPENCLAW_TAG",
+    "OPENCLAW_GATEWAY_TOKEN",
+    "OPENCLAW_GATEWAY_PORT",
+    "OPENCLAW_BRIDGE_HOST_PORT",
+    "OPENCLAW_GATEWAY_CONTAINER_PORT",
+    "OPENCLAW_BRIDGE_CONTAINER_PORT",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ];
+  const extraKeys = Object.keys(merged)
+    .filter((key) => !preferredOrder.includes(key))
+    .sort();
+  const orderedKeys = [...preferredOrder.filter((key) => merged[key] !== undefined), ...extraKeys];
+  const lines = [
+    "# Generated by ocs install. Do not set OPENCLAW_TAG=latest.",
+    "# Keep OPENCLAW_GATEWAY_TOKEN secret."
+  ];
+  for (const key of orderedKeys) {
+    if (key === "TELEGRAM_BOT_TOKEN") {
+      lines.push("# Fill this before Telegram setup: token from @BotFather");
+    } else if (key === "TELEGRAM_CHAT_ID") {
+      lines.push("# Optional: set if your Telegram workflow requires a fixed chat id");
+    }
+    lines.push(`${key}=${merged[key]}`);
+  }
+
+  return {
+    envContent: `${lines.join("\n")}\n`,
+    gatewayTokenGenerated,
+    selectedGatewayPort: selectedPorts.gatewayPort,
+    selectedBridgePort: selectedPorts.bridgePort,
+    portsAutoAdjusted: selectedPorts.autoAdjusted
+  };
+}
+
+function buildGatewayBootstrapConfig(): string {
+  return `# Generated by ocs install.
+# Non-interactive bootstrap so gateway can start without running "openclaw setup".
+gateway:
+  mode: local
+`;
+}
+
 function buildCompose(profileName: string, profile: ProfileConfig): string {
   const dnsAllowlistService = {
     image: "alpine:3.20",
@@ -50,26 +407,70 @@ function buildCompose(profileName: string, profile: ProfileConfig): string {
     }
   };
 
-  const openclawService: Record<string, unknown> = {
-    image: "nicolaka/netshoot:latest",
+  const openclawVolumes = ["./openclaw_data/config:/home/node/.openclaw", "./openclaw_data/workspace:/workspace"];
+  const publicListen = profile.openclaw.gateway.public_listen;
+  const allowUnconfigured = profile.openclaw.gateway.allow_unconfigured;
+  const hostBinding = publicListen ? "0.0.0.0" : "127.0.0.1";
+  const defaultGatewayBind = publicListen ? "lan" : "loopback";
+  const gatewayCommand = [
+    "node",
+    "dist/index.js",
+    "gateway",
+    "--bind",
+    defaultGatewayBind,
+    "--port",
+    "${OPENCLAW_GATEWAY_CONTAINER_PORT}"
+  ];
+  if (allowUnconfigured) {
+    gatewayCommand.push("--allow-unconfigured");
+  }
+  const openclawGatewayService: Record<string, unknown> = {
+    image: "${OPENCLAW_IMAGE}:${OPENCLAW_TAG}",
     restart: "unless-stopped",
-    command: ["sleep", "infinity"],
+    init: true,
+    command: gatewayCommand,
     user: "65532:65532",
-    volumes: ["./openclaw.config.json:/etc/openclaw/config.json:ro"],
+    environment: {
+      HOME: "/home/node",
+      TERM: "xterm",
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}",
+      OPENCLAW_BRIDGE_PORT: "${OPENCLAW_BRIDGE_CONTAINER_PORT}"
+    },
+    volumes: openclawVolumes,
     networks: ["openclaw_net"],
     depends_on: ["dns_allowlist"],
-    dns: [OPENCLAW_DNS_RESOLVER_IP]
+    dns: [OPENCLAW_DNS_RESOLVER_IP],
+    ports: [
+      `${hostBinding}:${"${OPENCLAW_GATEWAY_PORT}"}:${"${OPENCLAW_GATEWAY_CONTAINER_PORT}"}`,
+      `${hostBinding}:${"${OPENCLAW_BRIDGE_HOST_PORT}"}:${"${OPENCLAW_BRIDGE_CONTAINER_PORT}"}`
+    ]
   };
 
-  if (profile.openclaw.webui.enabled) {
-    openclawService.ports = ["127.0.0.1:3000:3000"];
-  }
+  const openclawCliService: Record<string, unknown> = {
+    image: "${OPENCLAW_IMAGE}:${OPENCLAW_TAG}",
+    init: true,
+    entrypoint: ["node", "dist/index.js"],
+    stdin_open: true,
+    tty: true,
+    user: "65532:65532",
+    environment: {
+      HOME: "/home/node",
+      TERM: "xterm",
+      OPENCLAW_GATEWAY_URL: "http://openclaw-gateway:${OPENCLAW_GATEWAY_CONTAINER_PORT}",
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    volumes: openclawVolumes,
+    networks: ["openclaw_net"],
+    depends_on: ["openclaw-gateway"],
+    dns: [OPENCLAW_DNS_RESOLVER_IP]
+  };
 
   const compose = {
     name: `openclaw-${profileName}`,
     services: {
       dns_allowlist: dnsAllowlistService,
-      openclaw: openclawService
+      "openclaw-gateway": openclawGatewayService,
+      "openclaw-cli": openclawCliService
     },
     networks: {
       openclaw_net: {
@@ -94,7 +495,7 @@ function buildSnapperOverlay(profileName: string): string {
         restart: "unless-stopped",
         networks: ["openclaw_net"]
       },
-      openclaw: {
+      "openclaw-gateway": {
         depends_on: ["snapper"],
         environment: {
           OPENCLAW_TOOL_PROXY_PROVIDER: "snapper",
@@ -111,9 +512,9 @@ function buildReadme(profileName: string, profile: ProfileConfig): string {
   const allowlist = normalizedAllowlist(profile);
   const allowedDomainExample = allowlist[0] ?? "localhost";
   const blockedDomainExample = allowlist.includes("example.com") ? "iana.org" : "example.com";
-  const webUiStatus = profile.openclaw.webui.enabled
-    ? "Enabled and bound to localhost only (`127.0.0.1:3000`)."
-    : "Disabled by default (no public port exposure).";
+  const exposureStatus = profile.openclaw.gateway.public_listen
+    ? "Public exposure enabled (`0.0.0.0` bindings for gateway/bridge host ports from `.env`)."
+    : "Local-only default (`127.0.0.1` bindings for gateway/bridge host ports from `.env`).";
   const snapperRunCommand = profile.snapper.enabled
     ? "docker compose -f docker-compose.yml -f docker-compose.snapper.yml up -d"
     : "docker compose up -d";
@@ -131,7 +532,7 @@ docker compose -f docker-compose.yml -f docker-compose.snapper.yml up -d
 \`\`\`
 
 Best-effort routing: the overlay sets \`OPENCLAW_TOOL_PROXY_PROVIDER=snapper\` and
-\`OPENCLAW_TOOL_PROXY_URL=http://snapper:8080\` on the \`openclaw\` service.
+\`OPENCLAW_TOOL_PROXY_URL=http://snapper:8080\` on the \`openclaw-gateway\` service.
 If the OpenClaw runtime supports these settings, tool calls are routed via Snapper.
 `
     : `## Snapper module
@@ -146,7 +547,10 @@ This folder is generated by \`ocs install --profile ${profileName}\`.
 
 ## Files
 - \`docker-compose.yml\` Compose definition with dedicated network \`openclaw_net\`
+- \`.env\` Pinned official OpenClaw image defaults (\`ghcr.io/openclaw/openclaw:2026.2.13\`)
 - \`openclaw.config.json\` Normalized OpenClaw config rendered from profile input
+- \`openclaw_data/\` Persistent OpenClaw state mounted to official paths
+- \`openclaw_data/config/config.yaml\` Non-interactive gateway bootstrap (\`gateway.mode=local\`)
 - \`dnsmasq.conf\` DNS allowlist resolver configuration for \`dns_allowlist\`
 ${snapperFilesLine}
 
@@ -155,19 +559,35 @@ ${snapperFilesLine}
 ${snapperRunCommand}
 \`\`\`
 
+## Token
+- Gateway token is stored in \`.env\` as \`OPENCLAW_GATEWAY_TOKEN\`.
+- Keep this value secret.
+
+## Non-interactive startup
+- \`openclaw-gateway\` is generated for non-interactive startup by default.
+- If supported by your image, \`--allow-unconfigured\` is used.
+- A fallback \`openclaw_data/config/config.yaml\` with \`gateway.mode=local\` is also generated.
+- You do not need to run \`openclaw setup\` for the default research-only flow.
+
 ## DNS allowlist
 - \`dns_allowlist\` is enabled by default for all profiles.
-- \`openclaw\` only uses resolver \`${OPENCLAW_DNS_RESOLVER_IP}\`.
+- \`openclaw-gateway\` and \`openclaw-cli\` only use resolver \`${OPENCLAW_DNS_RESOLVER_IP}\`.
 - Allowed domains: ${allowlist.length > 0 ? allowlist.map((domain) => `\`${domain}\``).join(", ") : "(none)"}
 
 Validation commands:
 
 \`\`\`bash
-docker compose exec -T openclaw nslookup ${allowedDomainExample}
-docker compose exec -T openclaw nslookup ${blockedDomainExample}
+docker compose exec -T openclaw-gateway nslookup ${allowedDomainExample}
+docker compose exec -T openclaw-gateway nslookup ${blockedDomainExample}
 \`\`\`
 
 Expected: allowlisted lookup succeeds; non-allowlisted lookup fails.
+
+To use the Docker Hub mirror, override \`OPENCLAW_IMAGE\` in \`.env\`:
+
+\`\`\`bash
+OPENCLAW_IMAGE=alpine/openclaw
+\`\`\`
 
 ## Host firewall
 Apply deny-by-default egress enforcement:
@@ -185,21 +605,21 @@ sudo node dist/ocs.js rollback-firewall
 Ticket 4 verification commands:
 
 \`\`\`bash
-docker compose exec -T openclaw curl -I --max-time 10 https://${allowedDomainExample}
-docker compose exec -T openclaw curl -I --max-time 10 https://example.com
+docker compose exec -T openclaw-gateway curl -I --max-time 10 https://${allowedDomainExample}
+docker compose exec -T openclaw-gateway curl -I --max-time 10 https://example.com
 \`\`\`
 
 ${snapperSection}
 
-## Web UI exposure
-${webUiStatus}
+## Port exposure
+${exposureStatus}
 
-To enable Web UI access for local machine only, set:
+To enable public exposure (not recommended by default), set:
 
 \`\`\`yaml
 openclaw:
-  webui:
-    enabled: true
+  gateway:
+    public_listen: true
 \`\`\`
 
 Then re-run:
@@ -210,13 +630,34 @@ node dist/ocs.js install --profile ${profileName}
 `;
 }
 
-export function writeInstallArtifacts(profileName: string, profile: ProfileConfig): string {
+export function writeInstallArtifacts(
+  profileName: string,
+  profile: ProfileConfig,
+  options: WriteInstallArtifactsOptions = {}
+): InstallArtifactsResult {
   const outDir = path.resolve(process.cwd(), "out", profileName);
+  const dataConfigDir = path.join(outDir, "openclaw_data", "config");
+  const dataWorkspaceDir = path.join(outDir, "openclaw_data", "workspace");
   const snapperOverlayPath = path.join(outDir, "docker-compose.snapper.yml");
+  const envPath = path.join(outDir, ".env");
+  const gatewayBootstrapConfigPath = path.join(dataConfigDir, "config.yaml");
 
   fs.mkdirSync(outDir, { recursive: true });
+  fs.mkdirSync(dataConfigDir, { recursive: true });
+  fs.mkdirSync(dataWorkspaceDir, { recursive: true });
+  const renderedProfile = `${JSON.stringify(profile, null, 2)}\n`;
+  const existingEnvSource = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : null;
+  const envResult = buildEnvFile(existingEnvSource, {
+    autoGenerateGatewayToken: options.autoGenerateGatewayToken ?? true,
+    autoAdjustPorts: options.autoAdjustPorts ?? true
+  });
   fs.writeFileSync(path.join(outDir, "docker-compose.yml"), buildCompose(profileName, profile), "utf8");
-  fs.writeFileSync(path.join(outDir, "openclaw.config.json"), `${JSON.stringify(profile, null, 2)}\n`, "utf8");
+  fs.writeFileSync(envPath, envResult.envContent, "utf8");
+  fs.writeFileSync(path.join(outDir, "openclaw.config.json"), renderedProfile, "utf8");
+  fs.writeFileSync(path.join(dataConfigDir, "config.json"), renderedProfile, "utf8");
+  if (!fs.existsSync(gatewayBootstrapConfigPath)) {
+    fs.writeFileSync(gatewayBootstrapConfigPath, buildGatewayBootstrapConfig(), "utf8");
+  }
   fs.writeFileSync(path.join(outDir, "dnsmasq.conf"), buildDnsmasqConfig(profile), "utf8");
   if (profile.snapper.enabled) {
     fs.writeFileSync(snapperOverlayPath, buildSnapperOverlay(profileName), "utf8");
@@ -225,5 +666,12 @@ export function writeInstallArtifacts(profileName: string, profile: ProfileConfi
   }
   fs.writeFileSync(path.join(outDir, "README.md"), buildReadme(profileName, profile), "utf8");
 
-  return outDir;
+  return {
+    outDir,
+    envPath,
+    gatewayTokenGenerated: envResult.gatewayTokenGenerated,
+    selectedGatewayPort: envResult.selectedGatewayPort,
+    selectedBridgePort: envResult.selectedBridgePort,
+    portsAutoAdjusted: envResult.portsAutoAdjusted
+  };
 }

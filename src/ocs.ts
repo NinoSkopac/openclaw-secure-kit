@@ -9,6 +9,7 @@ function printUsage(): void {
   console.log(`Commands: ${ALL_COMMANDS}`);
   console.log("Install options: --profile <name>");
   console.log("Verify options: --profile <name> --output <path>");
+  console.log("Doctor options: --profile <name> [--no-up]");
   console.log("apply-firewall options: --profile <name>");
 }
 

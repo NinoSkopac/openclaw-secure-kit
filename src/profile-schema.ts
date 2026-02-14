@@ -16,6 +16,12 @@ export const ProfileSchema = z.object({
         enabled: z.boolean().default(false)
       })
       .default({}),
+    gateway: z
+      .object({
+        public_listen: z.boolean().default(false),
+        allow_unconfigured: z.boolean().default(true)
+      })
+      .default({}),
     approvals: z.object({
       exec: z.enum(["allow", "require", "deny"])
     })

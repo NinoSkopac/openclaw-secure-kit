@@ -1,9 +1,12 @@
+import path from "node:path";
+
 import { applyFirewall, rollbackFirewall } from "./firewall";
+import { doctorProfile, shouldDoctorExit } from "./doctor";
 import { writeInstallArtifacts } from "./install-artifacts";
 import { loadProfile } from "./profile-loader";
 import { verifyProfile } from "./verifier";
 
-export type OcsCommand = "install" | "verify" | "apply-firewall" | "rollback-firewall";
+export type OcsCommand = "install" | "verify" | "doctor" | "apply-firewall" | "rollback-firewall";
 
 type CommandHandler = (args: string[]) => void;
 
@@ -33,11 +36,42 @@ function parseOptionArg(command: string, flag: string, args: string[]): string {
   throw new Error(`${command} requires --${flag} <value>`);
 }
 
+function hasFlag(flag: string, args: string[]): boolean {
+  const exact = `--${flag}`;
+  return args.some((token) => token === exact);
+}
+
 const install: CommandHandler = (args) => {
   const profileName = parseOptionArg("install", "profile", args);
   const profile = loadProfile(profileName);
-  writeInstallArtifacts(profileName, profile);
+  const artifacts = writeInstallArtifacts(profileName, profile);
+  const relativeOutDir = path.relative(process.cwd(), artifacts.outDir) || ".";
+  const relativeEnvPath = path.relative(process.cwd(), artifacts.envPath) || ".env";
+
   console.log(JSON.stringify(profile, null, 2));
+  console.log("");
+  console.log(`Artifacts written to: ${relativeOutDir}`);
+  console.log(
+    `Gateway token is stored in ${relativeEnvPath} (${artifacts.gatewayTokenGenerated ? "generated" : "reused"}; not printed).`
+  );
+  console.log(`Selected gateway port: ${artifacts.selectedGatewayPort} (stored in .env)`);
+  console.log(`Selected bridge port: ${artifacts.selectedBridgePort} (stored in .env)`);
+  if (artifacts.portsAutoAdjusted) {
+    console.log("Ports were auto-adjusted due to collision; see .env for active values.");
+  }
+  console.log("");
+  console.log("Next steps:");
+  console.log(`cd ${relativeOutDir}`);
+  console.log("docker compose up -d");
+  console.log("docker compose logs --tail=50 openclaw-gateway");
+  console.log("docker compose run --rm openclaw-cli --help");
+  console.log("A) Set Telegram bot token in .env (TELEGRAM_BOT_TOKEN=...)");
+  console.log("   Optional: set TELEGRAM_CHAT_ID=... if your workflow requires it.");
+  console.log("set -a && . ./.env && set +a");
+  console.log("B) Register Telegram channel with OpenClaw (gateway auth uses OPENCLAW_GATEWAY_TOKEN):");
+  console.log(
+    "docker compose run --rm --env-file .env -e OPENCLAW_GATEWAY_TOKEN=\"$OPENCLAW_GATEWAY_TOKEN\" openclaw-cli channels add --channel telegram --token \"$TELEGRAM_BOT_TOKEN\""
+  );
 };
 
 const verifyCommand: CommandHandler = (args) => {
@@ -46,10 +80,33 @@ const verifyCommand: CommandHandler = (args) => {
   const summary = verifyProfile(profileName, outputPath);
 
   console.log(`Wrote security report to ${outputPath}`);
-  console.log(`PASS: ${summary.passCount}  FAIL: ${summary.failCount}`);
+  console.log(`PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
 
   if (summary.failCount > 0) {
     throw new Error(`Verification failed with ${summary.failCount} failed check(s).`);
+  }
+};
+
+const doctorCommand: CommandHandler = (args) => {
+  const profileName = parseOptionArg("doctor", "profile", args);
+  const noUp = hasFlag("no-up", args);
+  const summary = doctorProfile(profileName, { noUp });
+
+  const relativeReportPath = path.relative(process.cwd(), summary.reportPath) || summary.reportPath;
+  console.log(`Version: ${summary.version} (${summary.commit})`);
+  if (summary.reportWritten) {
+    console.log(`Wrote security report to ${relativeReportPath}`);
+  } else {
+    console.log(`Could not write security report to ${relativeReportPath}`);
+  }
+  console.log(`PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
+
+  if (shouldDoctorExit(summary) && summary.requiresSudo) {
+    console.error("Some checks require elevated privileges. Re-run with sudo.");
+  }
+
+  if (shouldDoctorExit(summary)) {
+    throw new Error(`Doctor failed with ${summary.failCount} failing check(s).`);
   }
 };
 
@@ -65,6 +122,7 @@ const rollbackFirewallCommand: CommandHandler = () => {
 export const COMMAND_HANDLERS: Record<OcsCommand, CommandHandler> = {
   install,
   verify: verifyCommand,
+  doctor: doctorCommand,
   "apply-firewall": applyFirewallCommand,
   "rollback-firewall": rollbackFirewallCommand
 };
