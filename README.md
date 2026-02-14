@@ -56,6 +56,8 @@ v1 focuses on:
 - secrets externalized (gateway token stays in `.env`, not embedded in compose)
 - pinned image tags (no `latest`)
 
+The default tag is pinned intentionally and is bumped only after validation.
+
 Important caveat: direct-to-IP HTTPS may still work (for example, `https://1.1.1.1`) even when non-allowlisted domains are blocked by DNS policy. Do not treat v1 as an impossible-bypass model.
 
 See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, limitations, and hardening options.

@@ -36,6 +36,9 @@ PASS: `OPENCLAW_TAG` is non-empty and not `latest`; compose uses `${OPENCLAW_IMA
 FAIL: empty tag, `latest` (case-insensitive), or missing tag interpolation.  
 Minimal patch: enforce pinned defaults in `src/constants.ts` and `src/install-artifacts.ts`; update docs in `README.md`.
 
+Note: the kit intentionally pins a known-good default tag in `src/constants.ts` (never `latest`).  
+When bumping that default, validate the new tag with `ocs doctor`, then update `src/constants.ts` and any test fixture/docs references if needed.
+
 ## 4) Is gateway loopback-only by default?
 Commands:
 ```bash
