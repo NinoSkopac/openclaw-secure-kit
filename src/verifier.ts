@@ -407,6 +407,63 @@ function runCheckGatewayTmpfsOverlay(compose: ComposeDoc): CheckResult {
   };
 }
 
+function runCheckGatewayTmpfsRuntime(composePath: string, runtimeService: string): CheckResult {
+  const gatewayService = "openclaw-gateway";
+  const containerIdResult = getOpenclawContainerId(composePath, gatewayService);
+  if (!containerIdResult.containerId) {
+    return {
+      name: "Gateway runtime tmpfs active (HostConfig.Tmpfs)",
+      status: "FAIL",
+      details: containerIdResult.error ?? `${gatewayService} container id not found.`
+    };
+  }
+
+  const inspect = runCommand("docker", [
+    "inspect",
+    containerIdResult.containerId,
+    "--format",
+    "{{json .HostConfig.Tmpfs}}"
+  ]);
+  if (inspect.status !== 0) {
+    return {
+      name: "Gateway runtime tmpfs active (HostConfig.Tmpfs)",
+      status: "FAIL",
+      details: shortError(inspect)
+    };
+  }
+
+  const raw = trimOutput(inspect.stdout);
+  let tmpfs: Record<string, string> = {};
+  try {
+    tmpfs = (raw ? JSON.parse(raw) : {}) as Record<string, string>;
+  } catch {
+    return {
+      name: "Gateway runtime tmpfs active (HostConfig.Tmpfs)",
+      status: "FAIL",
+      details: `Unable to parse HostConfig.Tmpfs: ${raw || "(empty)"}`
+    };
+  }
+
+  const missingPaths = [GATEWAY_RUNTIME_TMPFS_CANVAS, GATEWAY_RUNTIME_TMPFS_CRON].filter(
+    (requiredPath) => tmpfs[requiredPath] === undefined
+  );
+  if (missingPaths.length > 0) {
+    return {
+      name: "Gateway runtime tmpfs active (HostConfig.Tmpfs)",
+      status: "FAIL",
+      details:
+        `HostConfig.Tmpfs missing required runtime paths: ${missingPaths.join(", ")}`
+    };
+  }
+
+  return {
+    name: "Gateway runtime tmpfs active (HostConfig.Tmpfs)",
+    status: "PASS",
+    details:
+      `${GATEWAY_RUNTIME_TMPFS_CANVAS}, ${GATEWAY_RUNTIME_TMPFS_CRON} present in HostConfig.Tmpfs`
+  };
+}
+
 function runCheckComposeUsesGatewayTokenInterpolation(outDir: string, composePath: string): CheckResult {
   if (!fs.existsSync(composePath)) {
     return {
@@ -1127,6 +1184,7 @@ export function verifyProfile(
     );
   } else {
     results.push(
+      runCheckGatewayTmpfsRuntime(composePath, runtimeService as string),
       runCheckContainerNonRoot(composePath, runtimeService as string),
       runCheckNoDockerSocket(composePath, compose, runtimeService as string),
       runCheckDnsForced(composePath, compose, runtimeService as string),

@@ -13,6 +13,15 @@ sudo ocs doctor --profile research-only
 cat out/research-only/security-report.md
 ```
 
+Runtime tmpfs/writable check:
+
+```bash
+cd out/research-only
+CID="$(docker compose --env-file .env ps -q openclaw-gateway)"
+docker inspect "$CID" --format '{{json .HostConfig.Tmpfs}}' | jq .
+docker compose --env-file .env exec openclaw-gateway sh -lc 'touch /home/node/.openclaw/canvas/_ok && touch /home/node/.openclaw/cron/_ok'
+```
+
 The generated research-only profile is non-interactive by default (no manual `openclaw setup` step required).
 Containers run as non-root (`65532:65532`), and runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
 Run doctor with `sudo` for reliable host/runtime checks.
