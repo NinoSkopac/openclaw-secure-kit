@@ -6,13 +6,23 @@ cd openclaw-secure-kit
 chmod +x install.sh
 ./install.sh
 ocs install --profile research-only
+docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+# Optional when already in out/research-only:
+# cd out/research-only && docker compose --env-file .env up -d
 sudo ocs doctor --profile research-only
 cat out/research-only/security-report.md
 ```
 
 The generated research-only profile is non-interactive by default (no manual `openclaw setup` step required).
+Containers run as non-root (`65532:65532`), and runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
+Run doctor with `sudo` for reliable host/runtime checks.
+If you run from source instead of the wrapper, use: `sudo node dist/ocs.js doctor --profile research-only --verbose`.
 
 If ports `18789/18790` are already in use, `ocs install` auto-selects free ports in `.env`. Check `out/research-only/.env` before connecting clients.
+
+tmpfs mounts for `canvas` and `cron` do not appear under `docker inspect ... .Mounts`.
+Inspect `HostConfig.Tmpfs` instead (for example: `docker inspect <cid> | rg HostConfig.Tmpfs`),
+or run `mount` inside the container to confirm runtime tmpfs entries.
 
 ## Direct-to-IP caveat and strict mode
 

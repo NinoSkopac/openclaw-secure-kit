@@ -22,8 +22,13 @@ sudo ./install.sh
 
 ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+# Optional when already in out/research-only:
+# cd out/research-only && docker compose --env-file .env up -d
 sudo ocs doctor --profile research-only
 ```
+
+`openclaw-gateway` runs as non-root (`65532:65532`) and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` to avoid fresh-install bind-mount permission issues.
+Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
 
 ## Learn more
 

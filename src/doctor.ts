@@ -19,6 +19,7 @@ type CommandResult = SpawnSyncReturns<string> & {
 export type DoctorOptions = {
   noUp?: boolean;
   directIpPolicyOverride?: "warn" | "fail";
+  verbose?: boolean;
 };
 
 export type DoctorSummary = {
@@ -30,11 +31,15 @@ export type DoctorSummary = {
   version: string;
   commit: string;
   requiresSudo: boolean;
+  verboseInfo: string[];
 };
 
 export function shouldDoctorExit(summary: Pick<DoctorSummary, "failCount">): boolean {
   return summary.failCount > 0;
 }
+
+const GATEWAY_RUNTIME_DIR_EACCES_PATTERN =
+  /(eacces:.*mkdir.*\/home\/node\/\.openclaw\/(?:canvas|cron)|permission denied.*\/home\/node\/\.openclaw\/(?:canvas|cron))/i;
 
 function runCommand(bin: string, args: string[]): CommandResult {
   const result = spawnSync(bin, args, {
@@ -98,6 +103,115 @@ function indicatesPermissionIssue(message: string): boolean {
   return /eperm|eacces|permission denied|operation not permitted/i.test(message);
 }
 
+function runGatewayTmpfsComposeCheck(composeSource: string): CheckResult {
+  const hasCanvasTmpfs = composeSource.includes("/home/node/.openclaw/canvas");
+  const hasCronTmpfs = composeSource.includes("/home/node/.openclaw/cron");
+  if (!hasCanvasTmpfs || !hasCronTmpfs) {
+    return {
+      status: "FAIL",
+      name: "Gateway runtime tmpfs overlay configured",
+      details:
+        "docker-compose.yml must include tmpfs overlays for /home/node/.openclaw/canvas and /home/node/.openclaw/cron."
+    };
+  }
+
+  return {
+    status: "PASS",
+    name: "Gateway runtime tmpfs overlay configured",
+    details: "Compose includes tmpfs overlays for canvas/cron runtime directories."
+  };
+}
+
+function runGatewayRuntimeDirLogCheck(composePath: string, envPath: string): CheckResult {
+  const logsResult = runCompose(composePath, envPath, ["logs", "--no-color", "--tail", "120", "openclaw-gateway"]);
+  if (logsResult.status !== 0) {
+    return {
+      status: "WARN",
+      name: "Gateway writable runtime dirs (canvas/cron)",
+      details: `SKIP: unable to read openclaw-gateway logs (${shortError(logsResult)}).`
+    };
+  }
+
+  const logs = [trimOutput(logsResult.stdout), trimOutput(logsResult.stderr)].filter(Boolean).join("\n");
+  if (GATEWAY_RUNTIME_DIR_EACCES_PATTERN.test(logs)) {
+    return {
+      status: "FAIL",
+      name: "Gateway writable runtime dirs (canvas/cron)",
+      details:
+        "gateway reported EACCES while creating /home/node/.openclaw/canvas or /home/node/.openclaw/cron. This usually means the tmpfs overlay is missing."
+    };
+  }
+
+  return {
+    status: "PASS",
+    name: "Gateway writable runtime dirs (canvas/cron)",
+    details: "No EACCES mkdir errors for canvas/cron found in recent gateway logs."
+  };
+}
+
+type TmpfsInspection = {
+  status: "INFO" | "WARN";
+  message: string;
+};
+
+function inspectGatewayTmpfs(composePath: string, envPath: string): TmpfsInspection {
+  const containerIdResult = runCompose(composePath, envPath, ["ps", "-q", "openclaw-gateway"]);
+  if (containerIdResult.status !== 0) {
+    return {
+      status: "WARN",
+      message: `tmpfs inspect skipped: unable to get openclaw-gateway container id (${shortError(containerIdResult)})`
+    };
+  }
+
+  const containerId = trimOutput(containerIdResult.stdout);
+  if (!containerId) {
+    return {
+      status: "WARN",
+      message: "tmpfs inspect skipped: openclaw-gateway container is not running."
+    };
+  }
+
+  const inspectResult = runCommand("docker", [
+    "inspect",
+    containerId,
+    "--format",
+    "{{json .HostConfig.Tmpfs}}"
+  ]);
+  if (inspectResult.status !== 0) {
+    return {
+      status: "WARN",
+      message: `tmpfs inspect skipped: unable to read HostConfig.Tmpfs (${shortError(inspectResult)})`
+    };
+  }
+
+  const raw = trimOutput(inspectResult.stdout);
+  let parsed: Record<string, string>;
+  try {
+    parsed = (raw ? JSON.parse(raw) : {}) as Record<string, string>;
+  } catch {
+    return {
+      status: "WARN",
+      message: `tmpfs inspect skipped: invalid HostConfig.Tmpfs payload (${raw || "empty"})`
+    };
+  }
+
+  const tmpfsPaths = Object.keys(parsed).sort();
+  const requiredPaths = ["/home/node/.openclaw/canvas", "/home/node/.openclaw/cron"];
+  const hasAllRequired = requiredPaths.every((requiredPath) => tmpfsPaths.includes(requiredPath));
+  if (hasAllRequired) {
+    return {
+      status: "INFO",
+      message:
+        "tmpfs configured: /home/node/.openclaw/canvas, /home/node/.openclaw/cron (Docker stores tmpfs under HostConfig.Tmpfs; not visible in .Mounts)"
+    };
+  }
+
+  return {
+    status: "WARN",
+    message: `tmpfs inspection found incomplete runtime paths in HostConfig.Tmpfs: ${tmpfsPaths.join(", ") || "(none)"}`
+  };
+}
+
 function resolveVersion(): { version: string; commit: string } {
   let version = "unknown";
   try {
@@ -120,6 +234,7 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   let reportWriteSucceeded = false;
   const results: CheckResult[] = [];
   const diagnostics: ReportDiagnostic[] = [];
+  const verboseInfo: string[] = [];
 
   const addResult = (status: CheckResult["status"], name: string, details: string): void => {
     results.push({ status, name, details });
@@ -209,6 +324,22 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
     addResult("FAIL", "Compose validation", `docker compose config failed: ${message}`);
     requiresSudo = requiresSudo || indicatesPermissionIssue(message);
   }
+  const tmpfsCheck = runGatewayTmpfsComposeCheck(composeSource);
+  addResult(tmpfsCheck.status, tmpfsCheck.name, tmpfsCheck.details);
+
+  if (composeConfig.status === 0) {
+    const runtimeDirLogCheck = runGatewayRuntimeDirLogCheck(composePath, envPath);
+    addResult(runtimeDirLogCheck.status, runtimeDirLogCheck.name, runtimeDirLogCheck.details);
+    if (options.verbose === true) {
+      const tmpfsInspection = inspectGatewayTmpfs(composePath, envPath);
+      const prefixedMessage = `${tmpfsInspection.status}: ${tmpfsInspection.message}`;
+      verboseInfo.push(prefixedMessage);
+      diagnostics.push({
+        title: "Runtime tmpfs inspection",
+        content: prefixedMessage
+      });
+    }
+  }
 
   const canRunVerify = results.every((result) => result.status !== "FAIL");
   try {
@@ -221,7 +352,15 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
       results.push(...verifySummary.results);
       diagnostics.push(...verifySummary.diagnostics);
     } else {
-      addResult("FAIL", "Verification checks execution", "Skipped because one or more doctor preflight checks failed.");
+      const hasTmpfsPermissionFailure = results.some(
+        (result) =>
+          result.status === "FAIL" && result.name === "Gateway writable runtime dirs (canvas/cron)"
+      );
+      addResult(
+        hasTmpfsPermissionFailure ? "WARN" : "FAIL",
+        "Verification checks execution",
+        "Skipped because one or more doctor preflight checks failed."
+      );
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -260,6 +399,7 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
     reportWritten: reportWriteSucceeded,
     version,
     commit,
-    requiresSudo
+    requiresSudo,
+    verboseInfo
   };
 }

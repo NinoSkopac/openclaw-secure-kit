@@ -47,6 +47,9 @@ const install: CommandHandler = (args) => {
   const artifacts = writeInstallArtifacts(profileName, profile);
   const relativeOutDir = path.relative(process.cwd(), artifacts.outDir) || ".";
   const relativeEnvPath = path.relative(process.cwd(), artifacts.envPath) || ".env";
+  const composePath = `${relativeOutDir}/docker-compose.yml`;
+  const canonicalComposeUp = `docker compose -f ${composePath} --env-file ${relativeEnvPath} up -d`;
+  const convenienceComposeUp = `cd ${relativeOutDir} && docker compose --env-file .env up -d`;
 
   console.log(JSON.stringify(profile, null, 2));
   console.log("");
@@ -61,12 +64,14 @@ const install: CommandHandler = (args) => {
   }
   console.log("");
   console.log("Next steps:");
-  console.log(`cd ${relativeOutDir}`);
-  console.log("docker compose up -d");
-  console.log("docker compose logs --tail=50 openclaw-gateway");
-  console.log("docker compose run --rm openclaw-cli --help");
+  console.log(canonicalComposeUp);
+  console.log(`# Optional when already in ${relativeOutDir}:`);
+  console.log(convenienceComposeUp);
+  console.log(`docker compose -f ${composePath} --env-file ${relativeEnvPath} logs --tail=50 openclaw-gateway`);
+  console.log(`docker compose -f ${composePath} --env-file ${relativeEnvPath} run --rm openclaw-cli --help`);
   console.log("A) Set Telegram bot token in .env (TELEGRAM_BOT_TOKEN=...)");
   console.log("   Optional: set TELEGRAM_CHAT_ID=... if your workflow requires it.");
+  console.log(`cd ${relativeOutDir}`);
   console.log("set -a && . ./.env && set +a");
   console.log("B) Register Telegram channel with OpenClaw (gateway auth uses OPENCLAW_GATEWAY_TOKEN):");
   console.log(
@@ -94,9 +99,11 @@ const doctorCommand: CommandHandler = (args) => {
   const profileName = parseOptionArg("doctor", "profile", args);
   const noUp = hasFlag("no-up", args);
   const strictIpEgress = hasFlag("strict-ip-egress", args);
+  const verbose = hasFlag("verbose", args);
   const summary = doctorProfile(profileName, {
     noUp,
-    directIpPolicyOverride: strictIpEgress ? "fail" : undefined
+    directIpPolicyOverride: strictIpEgress ? "fail" : undefined,
+    verbose
   });
 
   const relativeReportPath = path.relative(process.cwd(), summary.reportPath) || summary.reportPath;
@@ -105,6 +112,11 @@ const doctorCommand: CommandHandler = (args) => {
     console.log(`Wrote security report to ${relativeReportPath}`);
   } else {
     console.log(`Could not write security report to ${relativeReportPath}`);
+  }
+  if (verbose && summary.verboseInfo.length > 0) {
+    for (const infoLine of summary.verboseInfo) {
+      console.log(infoLine);
+    }
   }
   console.log(`PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
 

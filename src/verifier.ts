@@ -54,6 +54,14 @@ const DIRECT_IP_WARN_TEXT =
 const DIRECT_IP_HARDENING_TEXT =
   "To actually block direct-to-IP, enable hardened egress mode (proxy-only egress).";
 const DEFAULT_GATEWAY_TOKEN_PLACEHOLDER = "change-me";
+const GATEWAY_RUNTIME_TMPFS_CANVAS = "/home/node/.openclaw/canvas";
+const GATEWAY_RUNTIME_TMPFS_CRON = "/home/node/.openclaw/cron";
+const GATEWAY_RUNTIME_TMPFS_EXPECTED = [
+  `${GATEWAY_RUNTIME_TMPFS_CANVAS}:rw,noexec,nosuid,size=64m,mode=1777`,
+  `${GATEWAY_RUNTIME_TMPFS_CRON}:rw,noexec,nosuid,size=16m,mode=1777`
+];
+const GATEWAY_RUNTIME_DIR_EACCES_PATTERN =
+  /(eacces:.*mkdir.*\/home\/node\/\.openclaw\/(?:canvas|cron)|permission denied.*\/home\/node\/\.openclaw\/(?:canvas|cron))/i;
 const GATEWAY_DEFAULT_PORT = 18789;
 const GATEWAY_MIN_PORT = 18789;
 const GATEWAY_MAX_PORT = 18889;
@@ -252,15 +260,22 @@ function getGatewayServiceName(compose: ComposeDoc, runtimeService: string | nul
   return runtimeService;
 }
 
-function getGatewayMissingConfigDiagnosis(
+function getGatewayLogDiagnosis(
   composePath: string,
   compose: ComposeDoc,
   runtimeService: string | null
-): { missingConfig: boolean; logs: string | null; error?: string; serviceName: string | null } {
+): {
+  missingConfig: boolean;
+  runtimeDirEacces: boolean;
+  logs: string | null;
+  error?: string;
+  serviceName: string | null;
+} {
   const serviceName = getGatewayServiceName(compose, runtimeService);
   if (!serviceName) {
     return {
       missingConfig: false,
+      runtimeDirEacces: false,
       logs: null,
       error: `No runtime service found. Expected one of: ${OPENCLAW_RUNTIME_SERVICE_CANDIDATES.join(", ")}`,
       serviceName: null
@@ -271,6 +286,7 @@ function getGatewayMissingConfigDiagnosis(
   if (logsResult.status !== 0) {
     return {
       missingConfig: false,
+      runtimeDirEacces: false,
       logs: null,
       error: shortError(logsResult),
       serviceName
@@ -280,6 +296,7 @@ function getGatewayMissingConfigDiagnosis(
   const logs = [trimOutput(logsResult.stdout), trimOutput(logsResult.stderr)].filter(Boolean).join("\n");
   return {
     missingConfig: /missing config/i.test(logs),
+    runtimeDirEacces: GATEWAY_RUNTIME_DIR_EACCES_PATTERN.test(logs),
     logs: logs || null,
     serviceName
   };
@@ -352,6 +369,41 @@ function runCheckGatewayToken(outDir: string): CheckResult {
     name: "Gateway token is not default placeholder",
     status: "PASS",
     details: `OPENCLAW_GATEWAY_TOKEN is set (length=${token.length}).`
+  };
+}
+
+function runCheckGatewayTmpfsOverlay(compose: ComposeDoc): CheckResult {
+  const gatewayService = (compose.services?.["openclaw-gateway"] ?? null) as {
+    tmpfs?: unknown[];
+  } | null;
+
+  if (!gatewayService) {
+    return {
+      name: "Gateway runtime tmpfs overlay configured",
+      status: "FAIL",
+      details: "openclaw-gateway service is missing from docker-compose.yml."
+    };
+  }
+
+  const tmpfsEntries = (gatewayService.tmpfs ?? []).map((value) => String(value));
+  const requiredPaths = [GATEWAY_RUNTIME_TMPFS_CANVAS, GATEWAY_RUNTIME_TMPFS_CRON];
+  const missingPaths = requiredPaths.filter(
+    (requiredPath) => !tmpfsEntries.some((entry) => entry === requiredPath || entry.startsWith(`${requiredPath}:`))
+  );
+
+  if (missingPaths.length > 0) {
+    return {
+      name: "Gateway runtime tmpfs overlay configured",
+      status: "FAIL",
+      details:
+        `Missing tmpfs entries for: ${missingPaths.join(", ")}. Expected entries like: ${GATEWAY_RUNTIME_TMPFS_EXPECTED.join(" ; ")}`
+    };
+  }
+
+  return {
+    name: "Gateway runtime tmpfs overlay configured",
+    status: "PASS",
+    details: `tmpfs configured on openclaw-gateway: ${tmpfsEntries.join(", ")}`
   };
 }
 
@@ -592,7 +644,7 @@ function runCheckPortExposure(
 }
 
 function runCheckContainerNonRoot(composePath: string, runtimeService: string): CheckResult {
-  const result = runCompose(composePath, ["exec", "-T", runtimeService, "id", "-u"]);
+  const result = runCompose(composePath, ["exec", "-T", runtimeService, "sh", "-lc", "id -u; id -g"]);
   if (result.status !== 0) {
     return {
       name: "Container runs as non-root",
@@ -601,11 +653,19 @@ function runCheckContainerNonRoot(composePath: string, runtimeService: string): 
     };
   }
 
-  const uid = trimOutput(result.stdout);
+  const [uid = "", gid = ""] = trimOutput(result.stdout).split(/\r?\n/).map((line) => line.trim());
+  if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid)) {
+    return {
+      name: "Container runs as non-root",
+      status: "FAIL",
+      details: `Unable to parse runtime uid/gid from '${trimOutput(result.stdout)}'`
+    };
+  }
+
   return {
     name: "Container runs as non-root",
     status: uid !== "0" ? "PASS" : "FAIL",
-    details: `uid=${uid}`
+    details: uid !== "0" ? `uid=${uid} gid=${gid} (non-root)` : `uid=${uid} gid=${gid} (root is not allowed)`
   };
 }
 
@@ -884,6 +944,13 @@ function runCheckDirectToIpHttpsReachable(
   };
 }
 
+function runtimeDirPermissionFailureDetails(): string {
+  return [
+    "gateway reported EACCES while creating /home/node/.openclaw/canvas or /home/node/.openclaw/cron.",
+    "This usually means tmpfs overlays are missing for those runtime paths."
+  ].join(" ");
+}
+
 function runCheckFirewallEnabled(): CheckResult {
   const enabled = runCommand("systemctl", ["is-enabled", OPENCLAW_FIREWALL_UNIT_NAME]);
   if (enabled.status !== 0) {
@@ -983,36 +1050,46 @@ export function verifyProfile(
 
   const results: CheckResult[] = [
     runCheckGatewayToken(outDir),
+    runCheckGatewayTmpfsOverlay(compose),
     runCheckComposeUsesGatewayTokenInterpolation(outDir, composePath),
     runCheckSelectedPorts(outDir, composePath),
     runCheckNoHardcodedComposePorts(composePath),
     runCheckPortExposure(compose, runtimeService, profile.openclaw.gateway.public_listen)
   ];
 
-  const gatewayDiagnosis = getGatewayMissingConfigDiagnosis(composePath, compose, runtimeService);
+  const gatewayDiagnosis = getGatewayLogDiagnosis(composePath, compose, runtimeService);
   const gatewayMissingConfig = gatewayDiagnosis.missingConfig;
+  const gatewayRuntimeDirEacces = gatewayDiagnosis.runtimeDirEacces;
   if (gatewayMissingConfig) {
     diagnostics.push({
       title: `${gatewayDiagnosis.serviceName ?? "openclaw-gateway"} logs (last 60 lines)`,
       content: gatewayDiagnosis.logs ?? gatewayDiagnosis.error ?? "No logs available."
     });
   }
+  if (gatewayRuntimeDirEacces) {
+    diagnostics.push({
+      title: `${gatewayDiagnosis.serviceName ?? "openclaw-gateway"} runtime dir permission logs (last 60 lines)`,
+      content: gatewayDiagnosis.logs ?? gatewayDiagnosis.error ?? "No logs available."
+    });
+  }
 
-  if (!setupOk || !runtimeService || (!runtimeRunning && !gatewayMissingConfig)) {
-    const failureReason = !setupOk
-      ? `docker compose up failed: ${shortError(setup as CommandResult)}`
-      : !runtimeService
-        ? `No runtime service found. Expected one of: ${OPENCLAW_RUNTIME_SERVICE_CANDIDATES.join(", ")}`
-        : ensureUp
-          ? `Runtime stack is not running (${runtimeState.error ?? runtimeState.status ?? "unknown"}).`
-          : `Runtime stack is not running (${runtimeState.error ?? runtimeState.status ?? "unknown"}). Re-run without --no-up or start compose stack first.`;
+  if (gatewayRuntimeDirEacces && runtimeService) {
+    const reason = runtimeDirPermissionFailureDetails();
     results.push(
-      { name: "Container runs as non-root", status: "FAIL", details: failureReason },
-      { name: "Docker socket not mounted", status: "FAIL", details: failureReason },
-      { name: "DNS forced through dns_allowlist", status: "FAIL", details: failureReason },
-      { name: "Egress blocked to non-allowlisted domains", status: "FAIL", details: failureReason },
-      { name: "Egress works to allowlisted domains", status: "FAIL", details: failureReason },
-      { name: "Direct-to-IP HTTPS reachable", status: "FAIL", details: failureReason }
+      {
+        name: "Gateway writable runtime dirs (canvas/cron)",
+        status: "FAIL",
+        details: reason
+      },
+      runSkippedRuntimeCheck("Container runs as non-root", reason),
+      runCheckNoDockerSocket(composePath, compose, runtimeService, {
+        skipRuntimeExec: true,
+        skipReason: reason
+      }),
+      runSkippedRuntimeCheck("DNS forced through dns_allowlist", reason),
+      runSkippedRuntimeCheck("Egress blocked to non-allowlisted domains", reason),
+      runSkippedRuntimeCheck("Egress works to allowlisted domains", reason),
+      runSkippedRuntimeCheck("Direct-to-IP HTTPS reachable", reason)
     );
   } else if (gatewayMissingConfig && runtimeService) {
     const reason = "gateway missing config (needs allow-unconfigured or gateway.mode=local)";
@@ -1031,6 +1108,22 @@ export function verifyProfile(
       runSkippedRuntimeCheck("Egress blocked to non-allowlisted domains", reason),
       runSkippedRuntimeCheck("Egress works to allowlisted domains", reason),
       runSkippedRuntimeCheck("Direct-to-IP HTTPS reachable", reason)
+    );
+  } else if (!setupOk || !runtimeService || !runtimeRunning) {
+    const failureReason = !setupOk
+      ? `docker compose up failed: ${shortError(setup as CommandResult)}`
+      : !runtimeService
+        ? `No runtime service found. Expected one of: ${OPENCLAW_RUNTIME_SERVICE_CANDIDATES.join(", ")}`
+        : ensureUp
+          ? `Runtime stack is not running (${runtimeState.error ?? runtimeState.status ?? "unknown"}).`
+          : `Runtime stack is not running (${runtimeState.error ?? runtimeState.status ?? "unknown"}). Re-run without --no-up or start compose stack first.`;
+    results.push(
+      { name: "Container runs as non-root", status: "FAIL", details: failureReason },
+      { name: "Docker socket not mounted", status: "FAIL", details: failureReason },
+      { name: "DNS forced through dns_allowlist", status: "FAIL", details: failureReason },
+      { name: "Egress blocked to non-allowlisted domains", status: "FAIL", details: failureReason },
+      { name: "Egress works to allowlisted domains", status: "FAIL", details: failureReason },
+      { name: "Direct-to-IP HTTPS reachable", status: "FAIL", details: failureReason }
     );
   } else {
     results.push(

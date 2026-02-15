@@ -78,3 +78,10 @@ Expected commands:
 ./install.sh --no-deps
 ./uninstall.sh --purge
 ```
+
+## Runtime directory behavior
+
+`openclaw-gateway` runs as non-root (`65532:65532`).
+To avoid fresh-install permission issues on bind mounts, runtime directories
+`/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` are mounted as tmpfs overlays (ephemeral).
+No extra `chown`, `chmod`, or `sudo docker compose` steps are required.
