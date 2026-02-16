@@ -51,7 +51,7 @@ network:
 Then regenerate and restart:
 
 ```bash
-node dist/ocs.js install --profile research-only
+ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 ```
 
@@ -103,7 +103,7 @@ See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, 
 
 ## Troubleshooting
 
-- `ocs` auto-prefers `./dist/ocs.js` when you run inside a local `openclaw-secure-kit` checkout; set `OCS_FORCE_INSTALLED=1` to force the installed `/opt` binary.
+- Developer note: when testing unreleased local code, run `npm run build` and then `node dist/ocs.js <command> ...`.
 - For one-off CLI commands with compose, place `--env-file` before `run`:
   `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli --help`
 - If gateway logs show `device token mismatch`, re-run channel/device setup so local auth state is regenerated:
