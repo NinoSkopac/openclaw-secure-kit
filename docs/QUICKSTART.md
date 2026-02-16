@@ -28,7 +28,7 @@ Gateway runs as non-root user `node:node`, so OpenClaw can write its state direc
 Runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
 Run doctor with `sudo` for reliable host/runtime checks.
 If you run from source instead of the wrapper, use: `sudo node dist/ocs.js doctor --profile research-only --verbose`.
-If `ocs` reports a stale installed version while you are in a local checkout, run `node dist/ocs.js ...` from the checkout or refresh `/opt` with `sudo ./install.sh`.
+`ocs` auto-prefers `./dist/ocs.js` when you run inside a local checkout; set `OCS_FORCE_INSTALLED=1` to force the installed `/opt` binary.
 When running one-off CLI commands with compose, put `--env-file` before `run`:
 `docker compose --env-file .env run --rm openclaw-cli --help`.
 

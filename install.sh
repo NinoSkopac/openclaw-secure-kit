@@ -4,7 +4,7 @@ set -euo pipefail
 LOG_PREFIX="[ocs-install]"
 DEFAULT_PREFIX="/opt/openclaw-secure-kit"
 WRAPPER_PATH="/usr/local/bin/ocs"
-WRAPPER_MARKER="OCS_WRAPPER_STALE_GUARD_V1"
+WRAPPER_MARKER="OCS_WRAPPER_AUTO_SELECT_V2"
 CONFIG_DIR="/etc/openclaw-secure"
 STATE_DIR="/var/lib/openclaw-secure"
 
@@ -356,6 +356,8 @@ install_wrapper() {
 set -euo pipefail
 # ${WRAPPER_MARKER}
 
+installed_bin="${INSTALL_DIR}/dist/ocs.js"
+
 find_repo_root() {
   local dir="\${PWD}"
   while [[ "\${dir}" != "/" ]]; do
@@ -368,25 +370,35 @@ find_repo_root() {
   return 1
 }
 
-if [[ "\${OCS_ALLOW_PREFIX_OVERRIDE:-0}" != "1" ]]; then
-  local_repo_root=""
-  if local_repo_root="\$(find_repo_root 2>/dev/null)"; then
-    if [[ "\${local_repo_root}" != "${INSTALL_DIR}" && -d "\${local_repo_root}/.git" && -d "${INSTALL_DIR}/.git" && -f "\${local_repo_root}/dist/ocs.js" ]]; then
-      local_commit="\$(git -C "\${local_repo_root}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-      installed_commit="\$(git -C "${INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-      if [[ "\${local_commit}" != "unknown" && "\${installed_commit}" != "unknown" && "\${local_commit}" != "\${installed_commit}" ]]; then
-        echo "[ocs] Detected local checkout at \${local_repo_root} (commit \${local_commit}) that differs from installed commit \${installed_commit}."
-        echo "[ocs] Refusing to run stale installed binary from ${INSTALL_DIR}."
-        echo "[ocs] Use: node \${local_repo_root}/dist/ocs.js <command> ..."
-        echo "[ocs] Or update installed copy: sudo ./install.sh"
-        echo "[ocs] Set OCS_ALLOW_PREFIX_OVERRIDE=1 to force the installed /opt binary."
-        exit 2
-      fi
-    fi
+force_installed="\${OCS_FORCE_INSTALLED:-\${OCS_ALLOW_PREFIX_OVERRIDE:-0}}"
+if [[ "\${force_installed}" == "1" ]]; then
+  if [[ -f "\${installed_bin}" ]]; then
+    exec node "\${installed_bin}" "\$@"
+  fi
+  echo "[ocs] Installed CLI not found at \${installed_bin}."
+  echo "[ocs] Re-run installer: sudo ./install.sh"
+  exit 2
+fi
+
+local_repo_root=""
+if local_repo_root="\$(find_repo_root 2>/dev/null)"; then
+  if [[ "\${local_repo_root}" != "${INSTALL_DIR}" && -f "\${local_repo_root}/dist/ocs.js" ]]; then
+    exec node "\${local_repo_root}/dist/ocs.js" "\$@"
   fi
 fi
 
-exec node ${INSTALL_DIR}/dist/ocs.js "\$@"
+if [[ -f "\${installed_bin}" ]]; then
+  exec node "\${installed_bin}" "\$@"
+fi
+
+if [[ -n "\${local_repo_root}" && -f "\${local_repo_root}/package.json" ]]; then
+  echo "[ocs] Local build not found at \${local_repo_root}/dist/ocs.js."
+  echo "[ocs] Run: npm run build"
+else
+  echo "[ocs] Installed CLI not found at \${installed_bin}."
+  echo "[ocs] Run: sudo ./install.sh"
+fi
+exit 2
 EOF
   run_root_cmd install -m 0755 "${wrapper_tmp}" "${WRAPPER_PATH}"
   rm -f "${wrapper_tmp}"

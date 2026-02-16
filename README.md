@@ -103,7 +103,7 @@ See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, 
 
 ## Troubleshooting
 
-- If `ocs` reports a stale installed version while you are in a local checkout, run `node dist/ocs.js ...` from the checkout or refresh `/opt` with `sudo ./install.sh --no-deps`.
+- `ocs` auto-prefers `./dist/ocs.js` when you run inside a local `openclaw-secure-kit` checkout; set `OCS_FORCE_INSTALLED=1` to force the installed `/opt` binary.
 - For one-off CLI commands with compose, place `--env-file` before `run`:
   `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli --help`
 - If gateway logs show `device token mismatch`, re-run channel/device setup so local auth state is regenerated:
