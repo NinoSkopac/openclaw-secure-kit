@@ -6,6 +6,7 @@ openclaw:
 network:
   egress_default: deny
   allow:
+    - api.openai.com
     - github.com
     - registry.npmjs.org
   allow_ports:

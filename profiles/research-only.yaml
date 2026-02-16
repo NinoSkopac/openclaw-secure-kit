@@ -5,6 +5,7 @@ network:
   allow:
     - arxiv.org
     - paperswithcode.com
+    - api.openai.com
     - api.telegram.org
   allow_ports:
     - 443

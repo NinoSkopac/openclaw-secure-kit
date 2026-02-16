@@ -6,6 +6,7 @@ openclaw:
 network:
   egress_default: allow
   allow:
+    - api.openai.com
     - localhost
     - npmjs.com
   allow_ports:

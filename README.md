@@ -32,6 +32,34 @@ Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --prof
 If you are developing from a local checkout, run `node dist/ocs.js ...` from that checkout (or re-run `sudo ./install.sh` to refresh `/opt`). The global `ocs` wrapper now blocks stale `/opt` runs when it detects a different local commit.
 For one-off compose commands, use `docker compose --env-file ... run ...` (place `--env-file` before `run`).
 
+## Whitelist more domains
+
+Default profiles now include `api.openai.com` in `network.allow`.
+
+To allow additional domains, edit your selected profile (for example `profiles/research-only.yaml`) and append domains under `network.allow`:
+
+```yaml
+network:
+  allow:
+    - arxiv.org
+    - paperswithcode.com
+    - api.openai.com
+    - your-domain.example
+```
+
+Then regenerate and restart:
+
+```bash
+node dist/ocs.js install --profile research-only
+docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+```
+
+Quick check:
+
+```bash
+docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env exec -T openclaw-gateway nslookup api.openai.com
+```
+
 ## Learn more
 
 - Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
