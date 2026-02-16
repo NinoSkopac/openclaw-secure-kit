@@ -19,3 +19,9 @@ test("systemd firewall unit template exists", () => {
 test("verifier module exists", () => {
   assert.equal(fs.existsSync("src/verifier.ts"), true);
 });
+
+test("install output uses docker compose --env-file before run", () => {
+  const source = fs.readFileSync("src/commands.ts", "utf8");
+  assert.equal(source.includes("docker compose --env-file .env run --rm"), true);
+  assert.equal(source.includes("docker compose run --rm --env-file .env"), false);
+});

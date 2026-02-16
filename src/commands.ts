@@ -75,7 +75,7 @@ const install: CommandHandler = (args) => {
   console.log("set -a && . ./.env && set +a");
   console.log("B) Register Telegram channel with OpenClaw (gateway auth uses OPENCLAW_GATEWAY_TOKEN):");
   console.log(
-    "docker compose run --rm --env-file .env -e OPENCLAW_GATEWAY_TOKEN=\"$OPENCLAW_GATEWAY_TOKEN\" openclaw-cli channels add --channel telegram --token \"$TELEGRAM_BOT_TOKEN\""
+    "docker compose --env-file .env run --rm -e OPENCLAW_GATEWAY_TOKEN=\"$OPENCLAW_GATEWAY_TOKEN\" openclaw-cli channels add --channel telegram --token \"$TELEGRAM_BOT_TOKEN\""
   );
 };
 
