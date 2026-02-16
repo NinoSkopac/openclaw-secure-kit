@@ -29,6 +29,7 @@ sudo ocs doctor --profile research-only
 
 `openclaw-gateway` runs as non-root (`node:node`) so OpenClaw can write state without manual permission steps, and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron`.
 Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
+If you are developing from a local checkout, run `node dist/ocs.js ...` from that checkout (or re-run `sudo ./install.sh` to refresh `/opt`). The global `ocs` wrapper now blocks stale `/opt` runs when it detects a different local commit.
 
 ## Learn more
 

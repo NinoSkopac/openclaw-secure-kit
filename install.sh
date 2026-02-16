@@ -352,6 +352,37 @@ install_wrapper() {
   cat >"${wrapper_tmp}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+
+find_repo_root() {
+  local dir="\${PWD}"
+  while [[ "\${dir}" != "/" ]]; do
+    if [[ -f "\${dir}/package.json" ]] && grep -Eq '"name"[[:space:]]*:[[:space:]]*"openclaw-secure-kit"' "\${dir}/package.json"; then
+      echo "\${dir}"
+      return 0
+    fi
+    dir="\$(dirname "\${dir}")"
+  done
+  return 1
+}
+
+if [[ "\${OCS_ALLOW_PREFIX_OVERRIDE:-0}" != "1" ]]; then
+  local_repo_root=""
+  if local_repo_root="\$(find_repo_root 2>/dev/null)"; then
+    if [[ "\${local_repo_root}" != "${INSTALL_DIR}" && -d "\${local_repo_root}/.git" && -d "${INSTALL_DIR}/.git" && -f "\${local_repo_root}/dist/ocs.js" ]]; then
+      local_commit="\$(git -C "\${local_repo_root}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+      installed_commit="\$(git -C "${INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+      if [[ "\${local_commit}" != "unknown" && "\${installed_commit}" != "unknown" && "\${local_commit}" != "\${installed_commit}" ]]; then
+        echo "[ocs] Detected local checkout at \${local_repo_root} (commit \${local_commit}) that differs from installed commit \${installed_commit}."
+        echo "[ocs] Refusing to run stale installed binary from ${INSTALL_DIR}."
+        echo "[ocs] Use: node \${local_repo_root}/dist/ocs.js <command> ..."
+        echo "[ocs] Or update installed copy: sudo ./install.sh"
+        echo "[ocs] Set OCS_ALLOW_PREFIX_OVERRIDE=1 to force the installed /opt binary."
+        exit 2
+      fi
+    fi
+  fi
+fi
+
 exec node ${INSTALL_DIR}/dist/ocs.js "\$@"
 EOF
   run_root_cmd install -m 0755 "${wrapper_tmp}" "${WRAPPER_PATH}"

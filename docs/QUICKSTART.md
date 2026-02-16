@@ -27,6 +27,7 @@ Gateway runs as non-root user `node:node`, so OpenClaw can write its state direc
 Runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
 Run doctor with `sudo` for reliable host/runtime checks.
 If you run from source instead of the wrapper, use: `sudo node dist/ocs.js doctor --profile research-only --verbose`.
+If `ocs` reports a stale installed version while you are in a local checkout, run `node dist/ocs.js ...` from the checkout or refresh `/opt` with `sudo ./install.sh`.
 
 If ports `18789/18790` are already in use, `ocs install` auto-selects free ports in `.env`. Check `out/research-only/.env` before connecting clients.
 

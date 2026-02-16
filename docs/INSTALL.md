@@ -2,6 +2,9 @@
 
 `install.sh` targets Ubuntu 22.04/24.04 and installs to `/opt/openclaw-secure-kit` by default.
 
+The installed `ocs` wrapper executes `/opt/openclaw-secure-kit/dist/ocs.js`.
+If you are inside a different local checkout with a different git commit, `ocs` exits with a clear stale-version message instead of silently running old code.
+
 ## Clone + install
 
 ```bash
@@ -85,3 +88,24 @@ Expected commands:
 To avoid fresh-install permission issues on bind mounts, runtime directories
 `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` are mounted as tmpfs overlays (ephemeral).
 No extra `chown`, `chmod`, or `sudo docker compose` steps are required.
+
+## Local checkout vs installed wrapper
+
+When developing in a repo clone, prefer:
+
+```bash
+node dist/ocs.js install --profile research-only
+sudo node dist/ocs.js doctor --profile research-only
+```
+
+To refresh global `ocs` so it matches your checkout:
+
+```bash
+sudo ./install.sh
+```
+
+If you intentionally want to force the installed `/opt` binary from inside a different checkout, set:
+
+```bash
+OCS_ALLOW_PREFIX_OVERRIDE=1 ocs <command> ...
+```
