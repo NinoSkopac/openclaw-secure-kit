@@ -35,7 +35,8 @@ If `ocs install` still renders old compose behavior, refresh the installed wrapp
 
 ## Whitelist more domains
 
-Default profiles now include `api.openai.com` in `network.allow`.
+Default profiles include `api.openai.com` in `network.allow`.
+If you use `openai-codex` models, also allowlist `chatgpt.com`.
 
 To allow additional domains, edit your selected profile (for example `profiles/research-only.yaml`) and append domains under `network.allow`:
 
@@ -45,6 +46,7 @@ network:
     - arxiv.org
     - paperswithcode.com
     - api.openai.com
+    - chatgpt.com
     - your-domain.example
 ```
 
