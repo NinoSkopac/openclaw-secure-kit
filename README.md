@@ -31,6 +31,7 @@ sudo ocs doctor --profile research-only
 Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
 If you are developing from a local checkout, run `node dist/ocs.js ...` from that checkout (or re-run `sudo ./install.sh` to refresh `/opt`). The global `ocs` wrapper now blocks stale `/opt` runs when it detects a different local commit.
 For one-off compose commands, use `docker compose --env-file ... run ...` (place `--env-file` before `run`).
+If `ocs install` still renders old compose behavior, refresh the installed wrapper once: `sudo ./install.sh --no-deps`.
 
 ## Whitelist more domains
 

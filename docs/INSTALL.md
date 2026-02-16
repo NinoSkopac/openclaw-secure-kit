@@ -104,6 +104,12 @@ To refresh global `ocs` so it matches your checkout:
 sudo ./install.sh
 ```
 
+If you specifically need to refresh wrapper behavior without reinstalling dependencies:
+
+```bash
+sudo ./install.sh --no-deps
+```
+
 If you intentionally want to force the installed `/opt` binary from inside a different checkout, set:
 
 ```bash

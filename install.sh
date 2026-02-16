@@ -4,6 +4,7 @@ set -euo pipefail
 LOG_PREFIX="[ocs-install]"
 DEFAULT_PREFIX="/opt/openclaw-secure-kit"
 WRAPPER_PATH="/usr/local/bin/ocs"
+WRAPPER_MARKER="OCS_WRAPPER_STALE_GUARD_V1"
 CONFIG_DIR="/etc/openclaw-secure"
 STATE_DIR="/var/lib/openclaw-secure"
 
@@ -280,7 +281,8 @@ wrapper_points_to_prefix() {
   if [[ ! -f "${WRAPPER_PATH}" ]]; then
     return 1
   fi
-  grep -Fq "exec node ${INSTALL_DIR}/dist/ocs.js" "${WRAPPER_PATH}"
+  grep -Fq "exec node ${INSTALL_DIR}/dist/ocs.js" "${WRAPPER_PATH}" \
+    && grep -Fq "${WRAPPER_MARKER}" "${WRAPPER_PATH}"
 }
 
 check_idempotency() {
@@ -352,6 +354,7 @@ install_wrapper() {
   cat >"${wrapper_tmp}" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+# ${WRAPPER_MARKER}
 
 find_repo_root() {
   local dir="\${PWD}"
