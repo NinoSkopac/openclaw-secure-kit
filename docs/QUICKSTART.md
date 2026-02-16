@@ -23,7 +23,8 @@ docker compose --env-file .env exec openclaw-gateway sh -lc 'touch /home/node/.o
 ```
 
 The generated research-only profile is non-interactive by default (no manual `openclaw setup` step required).
-Containers run as non-root (`65532:65532`), and runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
+Gateway runs as non-root user `node:node`, so OpenClaw can write its state directory without manual permission steps.
+Runtime dirs `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` use tmpfs overlays to avoid bind-mount permission issues on fresh installs.
 Run doctor with `sudo` for reliable host/runtime checks.
 If you run from source instead of the wrapper, use: `sudo node dist/ocs.js doctor --profile research-only --verbose`.
 

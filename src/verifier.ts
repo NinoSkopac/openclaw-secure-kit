@@ -726,6 +726,22 @@ function runCheckContainerNonRoot(composePath: string, runtimeService: string): 
   };
 }
 
+function runCheckStateDirectoryWritable(composePath: string): CheckResult {
+  const gatewayService = "openclaw-gateway";
+  const checkCmd =
+    "test -w /home/node/.openclaw && touch /home/node/.openclaw/.write_test && rm -f /home/node/.openclaw/.write_test";
+  const result = runCompose(composePath, ["exec", "-T", gatewayService, "sh", "-lc", checkCmd]);
+
+  return {
+    name: "OpenClaw state directory writable",
+    status: result.status === 0 ? "PASS" : "FAIL",
+    details:
+      result.status === 0
+        ? "/home/node/.openclaw is writable by runtime user."
+        : `state mount not writable at /home/node/.openclaw (${shortError(result)})`
+  };
+}
+
 function runCheckNoDockerSocket(
   composePath: string,
   compose: ComposeDoc,
@@ -1139,6 +1155,7 @@ export function verifyProfile(
         details: reason
       },
       runSkippedRuntimeCheck("Container runs as non-root", reason),
+      runSkippedRuntimeCheck("OpenClaw state directory writable", reason),
       runCheckNoDockerSocket(composePath, compose, runtimeService, {
         skipRuntimeExec: true,
         skipReason: reason
@@ -1157,6 +1174,7 @@ export function verifyProfile(
         details: reason
       },
       runSkippedRuntimeCheck("Container runs as non-root", reason),
+      runSkippedRuntimeCheck("OpenClaw state directory writable", reason),
       runCheckNoDockerSocket(composePath, compose, runtimeService, {
         skipRuntimeExec: true,
         skipReason: reason
@@ -1176,6 +1194,7 @@ export function verifyProfile(
           : `Runtime stack is not running (${runtimeState.error ?? runtimeState.status ?? "unknown"}). Re-run without --no-up or start compose stack first.`;
     results.push(
       { name: "Container runs as non-root", status: "FAIL", details: failureReason },
+      { name: "OpenClaw state directory writable", status: "FAIL", details: failureReason },
       { name: "Docker socket not mounted", status: "FAIL", details: failureReason },
       { name: "DNS forced through dns_allowlist", status: "FAIL", details: failureReason },
       { name: "Egress blocked to non-allowlisted domains", status: "FAIL", details: failureReason },
@@ -1186,6 +1205,7 @@ export function verifyProfile(
     results.push(
       runCheckGatewayTmpfsRuntime(composePath, runtimeService as string),
       runCheckContainerNonRoot(composePath, runtimeService as string),
+      runCheckStateDirectoryWritable(composePath),
       runCheckNoDockerSocket(composePath, compose, runtimeService as string),
       runCheckDnsForced(composePath, compose, runtimeService as string),
       runCheckEgressBlocked(composePath, profile.network.allow, runtimeService as string),

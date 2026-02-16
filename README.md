@@ -27,7 +27,7 @@ docker compose -f out/research-only/docker-compose.yml --env-file out/research-o
 sudo ocs doctor --profile research-only
 ```
 
-`openclaw-gateway` runs as non-root (`65532:65532`) and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` to avoid fresh-install bind-mount permission issues.
+`openclaw-gateway` runs as non-root (`node:node`) so OpenClaw can write state without manual permission steps, and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron`.
 Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
 
 ## Learn more

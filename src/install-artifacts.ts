@@ -447,7 +447,7 @@ function buildCompose(profileName: string, profile: ProfileConfig): string {
     restart: "unless-stopped",
     init: true,
     command: gatewayCommand,
-    user: "65532:65532",
+    user: "node:node",
     environment: {
       HOME: "/home/node",
       TERM: "xterm",
@@ -471,7 +471,7 @@ function buildCompose(profileName: string, profile: ProfileConfig): string {
     entrypoint: ["node", "dist/index.js"],
     stdin_open: true,
     tty: true,
-    user: "65532:65532",
+    user: "node:node",
     environment: {
       HOME: "/home/node",
       TERM: "xterm",
@@ -538,7 +538,7 @@ docker compose -f out/${profileName}/docker-compose.yml --env-file out/${profile
 - Keep this value secret.
 
 ## Runtime writable dirs
-- Containers run as fixed non-root user \`65532:65532\`.
+- Containers run as non-root user \`node:node\`.
 - Runtime paths \`/home/node/.openclaw/canvas\` and \`/home/node/.openclaw/cron\` are mounted as container-local tmpfs.
 - These runtime dirs are ephemeral by design and avoid host permission errors on fresh installs.
 
@@ -621,6 +621,8 @@ export function writeInstallArtifacts(
   fs.mkdirSync(outDir, { recursive: true });
   fs.mkdirSync(dataConfigDir, { recursive: true });
   fs.mkdirSync(dataWorkspaceDir, { recursive: true });
+  fs.chmodSync(dataConfigDir, 0o755);
+  fs.chmodSync(dataWorkspaceDir, 0o755);
   const renderedProfile = `${JSON.stringify(profile, null, 2)}\n`;
   const existingEnvSource = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : null;
   const envResult = buildEnvFile(existingEnvSource, {

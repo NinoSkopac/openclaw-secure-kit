@@ -61,11 +61,11 @@ Minimal patch: remove mount from compose generation in `src/install-artifacts.ts
 ## 6) Do containers run as non-root?
 Commands:
 ```bash
-rg -n 'user:\s+65532:65532' out/research-only/docker-compose.yml
+rg -n 'user:\s+node:node' out/research-only/docker-compose.yml
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env exec -T openclaw-gateway id -u
 ```
-PASS: compose has `user: 65532:65532`; runtime uid is not `0`.  
+PASS: compose has `user: node:node`; runtime uid is not `0`.  
 FAIL: missing user setting or runtime uid `0`.  
 Minimal patch: set service `user` in `src/install-artifacts.ts`; keep verification in `src/verifier.ts`.
 
