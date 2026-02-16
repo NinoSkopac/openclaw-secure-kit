@@ -4,9 +4,10 @@
 git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+sudo ocs apply-firewall --profile research-only
 # Optional when already in out/research-only:
 # cd out/research-only && docker compose --env-file .env up -d
 sudo ocs doctor --profile research-only
@@ -32,6 +33,7 @@ When running one-off CLI commands with compose, put `--env-file` before `run`:
 `docker compose --env-file .env run --rm openclaw-cli --help`.
 
 If ports `18789/18790` are already in use, `ocs install` auto-selects free ports in `.env`. Check `out/research-only/.env` before connecting clients.
+If you skip `sudo ocs apply-firewall --profile research-only`, DNS allowlisting still applies, but host-level egress enforcement is not active.
 
 tmpfs mounts for `canvas` and `cron` do not appear under `docker inspect ... .Mounts`.
 Inspect `HostConfig.Tmpfs` instead (for example: `docker inspect <cid> | rg HostConfig.Tmpfs`),

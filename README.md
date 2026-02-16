@@ -9,7 +9,7 @@ Secure-by-default, profile-driven hardening for running OpenClaw on Ubuntu with 
 ## What you get
 
 - Profile-driven install output under `out/<profile>/` with externalized secrets and pinned image tags.
-- DNS allowlist + host firewall controls with loopback-first gateway exposure by default.
+- DNS allowlist by default, plus optional host firewall enforcement via `sudo ocs apply-firewall --profile <name>`.
 - One-command verification (`ocs doctor`) that writes a repeatable `security-report.md` (PASS/WARN/FAIL).
 
 ## Quickstart
@@ -22,6 +22,7 @@ sudo ./install.sh
 
 ocs install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+sudo ocs apply-firewall --profile research-only
 # Optional when already in out/research-only:
 # cd out/research-only && docker compose --env-file .env up -d
 sudo ocs doctor --profile research-only
@@ -29,9 +30,6 @@ sudo ocs doctor --profile research-only
 
 `openclaw-gateway` runs as non-root (`node:node`) so OpenClaw can write state without manual permission steps, and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron`.
 Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
-If you are developing from a local checkout, run `node dist/ocs.js ...` from that checkout (or re-run `sudo ./install.sh` to refresh `/opt`). The global `ocs` wrapper now blocks stale `/opt` runs when it detects a different local commit.
-For one-off compose commands, use `docker compose --env-file ... run ...` (place `--env-file` before `run`).
-If `ocs install` still renders old compose behavior, refresh the installed wrapper once: `sudo ./install.sh --no-deps`.
 
 ## Whitelist more domains
 
@@ -56,6 +54,8 @@ Then regenerate and restart:
 node dist/ocs.js install --profile research-only
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 ```
+
+If you see `web_fetch failed: getaddrinfo EAI_AGAIN <domain>`, that domain is currently blocked by the DNS allowlist.
 
 Quick check:
 
@@ -100,6 +100,14 @@ The default tag is pinned intentionally and is bumped only after validation.
 Important caveat: direct-to-IP HTTPS may still work (for example, `https://1.1.1.1`) even when non-allowlisted domains are blocked by DNS policy. Do not treat v1 as an impossible-bypass model.
 
 See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, limitations, and hardening options.
+
+## Troubleshooting
+
+- If `ocs` reports a stale installed version while you are in a local checkout, run `node dist/ocs.js ...` from the checkout or refresh `/opt` with `sudo ./install.sh --no-deps`.
+- For one-off CLI commands with compose, place `--env-file` before `run`:
+  `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli --help`
+- If gateway logs show `device token mismatch`, re-run channel/device setup so local auth state is regenerated:
+  `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli configure`
 
 ## Maintainers
 
