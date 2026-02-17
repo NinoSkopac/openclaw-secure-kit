@@ -9,6 +9,7 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 ## Table of contents
 
+- [Services (fastest path)](#services-fastest-path)
 - [What you get](#what-you-get)
 - [Quickstart](#quickstart)
 - [How it works](#how-it-works)
@@ -22,6 +23,17 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 - [Security policy](#security-policy)
 
 ---
+
+## Services (fastest path)
+
+This repo stays fully open-source. If you want a **hardened OpenClaw deployment on Ubuntu fast**, with a **verifiable security report**, use the services track:
+
+- **Secure install (one-time)** — starting at **$499**
+- **Managed updates (monthly)** — starting at **$299/mo**
+- **Custom profiles / policy tuning** — starting at **$1,500**
+
+Full details + scope: **[`docs/SERVICES.md`](docs/SERVICES.md)**  
+
 
 ## What you get
 
@@ -228,11 +240,11 @@ sudo ocs doctor --profile research-only --verbose
 
 ## Docs
 
+- Services: [`docs/SERVICES.md`](docs/SERVICES.md)
 - Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
 - Quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
 - Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
 - Hardening notes: [`docs/HARDENING.md`](docs/HARDENING.md)
-- Services: [`docs/SERVICES.md`](docs/SERVICES.md)
 - Public release checklist: [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)
 
 ---
