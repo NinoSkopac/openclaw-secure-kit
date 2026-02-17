@@ -2,7 +2,8 @@
 
 This repository stays fully open-source. If you want faster deployment, support, or managed operations, use the services path below.
 
-Contact: `nino.skopac@gmail.com`
+- Contact: `nino.skopac@gmail.com`
+- Portfolio: https://www.upwork.com/freelancers/~013469808662f577d0
 
 ---
 

@@ -1,114 +1,248 @@
 # openclaw-secure-kit
 
-[![CI](https://img.shields.io/github/actions/workflow/status/NinoSkopac/openclaw-secure-kit/ci.yml?branch=main&label=CI)](https://github.com/NinoSkopac/openclaw-secure-kit/actions/workflows/ci.yml)
-![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)
-![Docker required](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)
+Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu with **verifiable egress controls**.
 
-Secure-by-default, profile-driven hardening for running OpenClaw on Ubuntu with verifiable egress controls.
+> This kit is designed to run **after** you have a host (Ubuntu + Docker), and **before** you start using OpenClaw in production.
+> It generates a hardened, reproducible deployment under `out/<profile>/` and provides a one-command verifier that writes a security report.
+
+---
+
+## Table of contents
+
+- [What you get](#what-you-get)
+- [Quickstart](#quickstart)
+- [How it works](#how-it-works)
+- [Profiles](#profiles)
+- [Verification (`ocs doctor`)](#verification-ocs-doctor)
+- [Security model (and caveats)](#security-model-and-caveats)
+- [Install / uninstall](#install--uninstall)
+- [Troubleshooting](#troubleshooting)
+- [Docs](#docs)
+- [Contributing](#contributing)
+- [Security policy](#security-policy)
+
+---
 
 ## What you get
 
-- Profile-driven install output under `out/<profile>/` with externalized secrets and pinned image tags.
-- DNS allowlist by default, plus optional host firewall enforcement via `sudo ocs apply-firewall --profile <name>`.
-- One-command verification (`ocs doctor`) that writes a repeatable `security-report.md` (PASS/WARN/FAIL).
+- **Profile-driven output** under `out/<profile>/`
+  - externalized secrets (tokens live in `.env`, not baked into compose)
+  - pinned image tags (no `latest`)
+- **Egress guardrails**
+  - DNS allowlist policy + host firewall controls
+- **Loopback-first exposure**
+  - gateway binds to `127.0.0.1` by default (not publicly exposed)
+- **Non-root runtime**
+  - `openclaw-gateway` runs as `1000:1000` (`node` user)
+- **One-command verification**
+  - `ocs doctor` produces a repeatable `security-report.md` with PASS/WARN/FAIL summary
+
+---
 
 ## Quickstart
-> **Why `sudo`?** The installer sets up system dependencies and host security controls (nftables/systemd) and installs to `/opt`, which requires root on Ubuntu.
+
+> **Why `sudo`?** The installer configures host dependencies and security controls (systemd / nftables) and installs to `/opt`, which requires root on Ubuntu.
+
 ```bash
 git clone https://github.com/NinoSkopac/openclaw-secure-kit
 cd openclaw-secure-kit
 chmod +x install.sh
+
 sudo ./install.sh
 
+# Generate a hardened deployment under out/<profile>/
 ocs install --profile research-only
+
+# Start the generated stack
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
-sudo ocs apply-firewall --profile research-only
-# Optional when already in out/research-only:
-# cd out/research-only && docker compose --env-file .env up -d
+
+# Verify host + runtime controls and write a security report
 sudo ocs doctor --profile research-only
+
+# Read the report
+cat out/research-only/security-report.md
 ```
 
-`openclaw-gateway` runs as non-root (`node:node`) so OpenClaw can write state without manual permission steps, and uses tmpfs overlays for `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron`.
-Run doctor with `sudo` for reliable host/runtime checks: `sudo ocs doctor --profile research-only --verbose`.
+Notes:
 
-## Whitelist more domains
+- The generated `research-only` profile is **non-interactive by default** (no manual “setup” step required).
+- To avoid fresh-install bind-mount permission issues, runtime dirs:
+  - `/home/node/.openclaw/canvas`
+  - `/home/node/.openclaw/cron`
+    are mounted as **tmpfs overlays (ephemeral)**.
 
-Default profiles include `api.openai.com` in `network.allow`.
-If you use `openai-codex` models, also allowlist `chatgpt.com`.
+---
 
-To allow additional domains, edit your selected profile (for example `profiles/research-only.yaml`) and append domains under `network.allow`:
+## How it works
 
-```yaml
-network:
-  allow:
-    - arxiv.org
-    - paperswithcode.com
-    - api.openai.com
-    - chatgpt.com
-    - your-domain.example
-```
+1. You choose a **profile** (example: `research-only`).
+2. `ocs install` generates a hardened deployment bundle under:
 
-Then regenerate and restart:
+   ```
+   out/<profile>/
+     .env
+     docker-compose.yml
+     security-report.md   (after running doctor)
+   ```
+
+3. You run Docker Compose using the generated `.env` + compose file.
+4. `ocs doctor` verifies the host and runtime posture and writes a report you can hand to:
+  - teammates
+  - clients
+  - compliance/security reviewers
+
+---
+
+## Profiles
+
+Profiles are intended to be **simple, auditable, and repeatable**.
+
+- Start with an existing profile (e.g. `research-only`)
+- Create additional profiles when you need different allowlists, exposure, or policy posture
+- Output is always generated under `out/<profile>/` so you can diff/commit internally if you want
+
+Tip: if ports `18789/18790` are already in use, `ocs install` will auto-select free ports and write them into `out/<profile>/.env`. Always check the generated `.env` before connecting clients.
+
+---
+
+## Verification (`ocs doctor`)
+
+`ocs doctor` is the “trust but verify” step.
 
 ```bash
-ocs install --profile research-only
-docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+sudo ocs doctor --profile research-only --verbose
 ```
 
-If you see `web_fetch failed: getaddrinfo EAI_AGAIN <domain>`, that domain is currently blocked by the DNS allowlist.
-
-Quick check:
-
-```bash
-docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env exec -T openclaw-gateway nslookup api.openai.com
-```
-
-## Learn more
-
-- Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
-- Services: [`docs/SERVICES.md`](docs/SERVICES.md)
-- Quickstart guide: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
-- Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
-
-## Who is this for?
-
-- Teams that want OpenClaw access without giving agents full internet egress.
-- Organizations running agents for contractors or internal teams that need guardrails by default.
-- Operators who need a repeatable security report for internal policy/compliance reviews.
-
-## Verification snapshot
+It writes `out/<profile>/security-report.md` and prints a summary like:
 
 ```text
-Version: 0.1.0 (9ff1fc3)
 Wrote security report to out/research-only/security-report.md
 PASS: 18  WARN: 2  FAIL: 0
 ```
 
-`WARN` includes the known direct-to-IP HTTPS caveat.
+If `doctor` reports any **FAIL**, treat the host as **not compliant** until fixed.
 
-## Security model
+### Strict IP egress check (optional)
 
-v1 focuses on:
+DNS allowlisting controls domain resolution, but it **cannot** block direct HTTPS connections to raw IPs by itself.
+
+- Default policy: `network.direct_ip_policy: warn`
+- Strict policy: `network.direct_ip_policy: fail` (or `network.strict_ip_egress: true`)
+- One-off strict run:
+
+```bash
+sudo ocs doctor --profile research-only --strict-ip-egress
+```
+
+---
+
+## Security model and caveats
+
+### What v1 focuses on
+
 - domain-level egress control (DNS allowlist + host firewall)
-- non-public gateway exposure (loopback by default)
+- loopback-first gateway exposure (not public by default)
 - non-root containers
-- secrets externalized (gateway token stays in `.env`, not embedded in compose)
+- secrets externalized (`OPENCLAW_GATEWAY_TOKEN` stays in `.env`)
 - pinned image tags (no `latest`)
 
-The default tag is pinned intentionally and is bumped only after validation.
+### What v1 does **not** guarantee
 
-Important caveat: direct-to-IP HTTPS may still work (for example, `https://1.1.1.1`) even when non-allowlisted domains are blocked by DNS policy. Do not treat v1 as an impossible-bypass model.
+This is **not** an “impossible-bypass” outbound control model.
 
-See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for guarantees, assumptions, limitations, and hardening options.
+**Direct-to-IP HTTPS may still work** (example: `https://1.1.1.1`) even when non-allowlisted domains are blocked by DNS policy.
+Do not claim v1 makes egress bypass impossible.
+
+### Assumptions
+
+- end-users do **not** have SSH access to the host
+- workloads do **not** mount the Docker socket
+- deployment target is Ubuntu 22.04/24.04 with Docker
+
+See the threat model doc for guarantees, assumptions, limitations, and hardening roadmap.
+
+---
+
+## Install / uninstall
+
+### Install
+
+```bash
+chmod +x install.sh
+sudo ./install.sh
+```
+
+Common options:
+
+```bash
+./install.sh --dry-run
+./install.sh --no-deps
+./install.sh --prefix /srv/openclaw-secure-kit
+./install.sh --force
+./install.sh --version
+```
+
+### Curl | bash
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NinoSkopac/openclaw-secure-kit/refs/heads/main/install.sh | bash
+```
+
+### Uninstall
+
+```bash
+./uninstall.sh
+./uninstall.sh --purge
+./uninstall.sh --purge --prefix /srv/openclaw-secure-kit
+```
+
+---
 
 ## Troubleshooting
 
-- Developer note: when testing unreleased local code, run `npm run build` and then `node dist/ocs.js <command> ...`.
-- For one-off CLI commands with compose, place `--env-file` before `run`:
-  `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli --help`
-- If gateway logs show `device token mismatch`, re-run channel/device setup so local auth state is regenerated:
-  `docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env run --rm openclaw-cli configure`
+### “I don’t see tmpfs mounts in `docker inspect ... .Mounts`”
+tmpfs entries don’t show up under `.Mounts`. Inspect `.HostConfig.Tmpfs` instead:
 
-## Maintainers
+```bash
+cd out/research-only
+CID="$(docker compose --env-file .env ps -q openclaw-gateway)"
+docker inspect "$CID" --format '{{json .HostConfig.Tmpfs}}' | jq .
+docker compose --env-file .env exec openclaw-gateway sh -lc 'mount | rg openclaw'
+```
 
-Before tagging a release, run [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md).
+### Port collisions
+If ports are busy, `ocs install` auto-selects new ones. Verify:
+
+```bash
+cat out/research-only/.env | rg 'OPENCLAW_.*PORT'
+```
+
+### “Doctor results differ when not using sudo”
+Run doctor with `sudo` for reliable host/runtime checks:
+
+```bash
+sudo ocs doctor --profile research-only --verbose
+```
+
+---
+
+## Docs
+
+- Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
+- Quickstart: [`docs/QUICKSTART.md`](docs/QUICKSTART.md)
+- Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
+- Hardening notes: [`docs/HARDENING.md`](docs/HARDENING.md)
+- Services: [`docs/SERVICES.md`](docs/SERVICES.md)
+- Public release checklist: [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)
+
+---
+
+## Contributing
+
+PRs welcome. See `CONTRIBUTING.md`.
+
+---
+
+## Security policy
+
+Please report security issues privately. See `SECURITY.md`.
