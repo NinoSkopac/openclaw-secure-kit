@@ -28,6 +28,8 @@ export type DoctorSummary = {
   failCount: number;
   reportPath: string;
   reportWritten: boolean;
+  securityReportPath: string;
+  securityReportWritten: boolean;
   version: string;
   commit: string;
   requiresSudo: boolean;
@@ -212,6 +214,38 @@ function inspectGatewayTmpfs(composePath: string, envPath: string): TmpfsInspect
   };
 }
 
+function buildDoctorReportMarkdown(
+  profileName: string,
+  composePath: string,
+  securityReportPath: string,
+  results: CheckResult[],
+  diagnostics: ReportDiagnostic[] = []
+): string {
+  const { passCount, warnCount, failCount } = summarizeCheckResults(results);
+  const lines = [
+    "# Doctor Report",
+    "",
+    `- Profile: \`${profileName}\``,
+    `- Compose: \`${composePath}\``,
+    `- Security report: \`${securityReportPath}\``,
+    `- Generated: ${new Date().toISOString()}`,
+    `- Summary: ${passCount} PASS / ${warnCount} WARN / ${failCount} FAIL`,
+    "",
+    "## Checks",
+    ...results.map((result) => `- ${result.status}: ${result.name} — ${result.details}`)
+  ];
+
+  if (diagnostics.length > 0) {
+    lines.push("", "## Diagnostics");
+    for (const diagnostic of diagnostics) {
+      const safeContent = diagnostic.content.replace(/```/g, "'''");
+      lines.push("", `### ${diagnostic.title}`, "```text", safeContent || "(no logs)", "```");
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
 function resolveVersion(): { version: string; commit: string } {
   let version = "unknown";
   try {
@@ -231,26 +265,28 @@ function resolveVersion(): { version: string; commit: string } {
 
 export function doctorProfile(profileName: string, options: DoctorOptions = {}): DoctorSummary {
   let requiresSudo = false;
-  let reportWriteSucceeded = false;
-  const results: CheckResult[] = [];
-  const diagnostics: ReportDiagnostic[] = [];
+  let doctorReportWriteSucceeded = false;
+  let securityReportWriteSucceeded = false;
+  const doctorResults: CheckResult[] = [];
+  const doctorDiagnostics: ReportDiagnostic[] = [];
   const verboseInfo: string[] = [];
 
-  const addResult = (status: CheckResult["status"], name: string, details: string): void => {
-    results.push({ status, name, details });
+  const addDoctorResult = (status: CheckResult["status"], name: string, details: string): void => {
+    doctorResults.push({ status, name, details });
   };
 
   const { version, commit } = resolveVersion();
   let outDir = path.resolve(process.cwd(), "out", profileName);
   let composePath = path.join(outDir, "docker-compose.yml");
   let envPath = path.join(outDir, ".env");
-  const reportPath = path.join(outDir, "security-report.md");
+  let securityReportPath = path.join(outDir, "security-report.md");
+  let doctorReportPath = path.join(outDir, "doctor-report.md");
 
   const distPath = path.resolve(process.cwd(), "dist", "ocs.js");
   if (fs.existsSync(distPath)) {
-    addResult("PASS", "Build sanity", "dist/ocs.js exists.");
+    addDoctorResult("PASS", "Build sanity", "dist/ocs.js exists.");
   } else {
-    addResult("FAIL", "Build sanity", "dist/ocs.js not found. Run `npm run build` first.");
+    addDoctorResult("FAIL", "Build sanity", "dist/ocs.js not found. Run `npm run build` first.");
   }
 
   let profileLoaded = false;
@@ -258,10 +294,10 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   try {
     loadedProfile = loadProfile(profileName);
     profileLoaded = true;
-    addResult("PASS", "Profile loading", `Profile '${profileName}' loaded and validated.`);
+    addDoctorResult("PASS", "Profile loading", `Profile '${profileName}' loaded and validated.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addResult("FAIL", "Profile loading", message);
+    addDoctorResult("FAIL", "Profile loading", message);
   }
 
   if (profileLoaded && loadedProfile !== null) {
@@ -273,14 +309,16 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
       outDir = artifacts.outDir;
       composePath = path.join(outDir, "docker-compose.yml");
       envPath = path.join(outDir, ".env");
-      addResult("PASS", "Artifact generation sanity", `Generated artifacts under ${outDir}.`);
+      securityReportPath = path.join(outDir, "security-report.md");
+      doctorReportPath = path.join(outDir, "doctor-report.md");
+      addDoctorResult("PASS", "Artifact generation sanity", `Generated artifacts under ${outDir}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      addResult("FAIL", "Artifact generation sanity", message);
+      addDoctorResult("FAIL", "Artifact generation sanity", message);
       requiresSudo = requiresSudo || indicatesPermissionIssue(message);
     }
   } else {
-    addResult("FAIL", "Artifact generation sanity", "Skipped because profile failed to load.");
+    addDoctorResult("FAIL", "Artifact generation sanity", "Skipped because profile failed to load.");
   }
 
   const requiredFiles: Array<{ label: string; target: string }> = [
@@ -290,9 +328,9 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   ];
   for (const required of requiredFiles) {
     if (fs.existsSync(required.target)) {
-      addResult("PASS", "Artifact generation sanity", `${required.label}: ${required.target}`);
+      addDoctorResult("PASS", "Artifact generation sanity", `${required.label}: ${required.target}`);
     } else {
-      addResult("FAIL", "Artifact generation sanity", `${required.label}: missing at ${required.target}`);
+      addDoctorResult("FAIL", "Artifact generation sanity", `${required.label}: missing at ${required.target}`);
     }
   }
 
@@ -303,13 +341,13 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   const hasInterpolation = composeSource.includes("${OPENCLAW_GATEWAY_TOKEN}");
   const leaksToken = Boolean(gatewayToken) && composeSource.includes(gatewayToken);
   if (hasInterpolation && !leaksToken) {
-    addResult(
+    addDoctorResult(
       "PASS",
       "Secrets externalization",
       "docker-compose.yml references ${OPENCLAW_GATEWAY_TOKEN} and does not embed the literal token."
     );
   } else {
-    addResult(
+    addDoctorResult(
       "FAIL",
       "Secrets externalization",
       "docker-compose.yml must use ${OPENCLAW_GATEWAY_TOKEN} and avoid embedding literal token values."
@@ -318,73 +356,118 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
 
   const composeConfig = runCompose(composePath, envPath, ["config"]);
   if (composeConfig.status === 0) {
-    addResult("PASS", "Compose validation", "docker compose config succeeded.");
+    addDoctorResult("PASS", "Compose validation", "docker compose config succeeded.");
   } else {
     const message = shortError(composeConfig);
-    addResult("FAIL", "Compose validation", `docker compose config failed: ${message}`);
+    addDoctorResult("FAIL", "Compose validation", `docker compose config failed: ${message}`);
     requiresSudo = requiresSudo || indicatesPermissionIssue(message);
   }
   const tmpfsCheck = runGatewayTmpfsComposeCheck(composeSource);
-  addResult(tmpfsCheck.status, tmpfsCheck.name, tmpfsCheck.details);
+  addDoctorResult(tmpfsCheck.status, tmpfsCheck.name, tmpfsCheck.details);
 
   if (composeConfig.status === 0) {
     const runtimeDirLogCheck = runGatewayRuntimeDirLogCheck(composePath, envPath);
-    addResult(runtimeDirLogCheck.status, runtimeDirLogCheck.name, runtimeDirLogCheck.details);
+    addDoctorResult(runtimeDirLogCheck.status, runtimeDirLogCheck.name, runtimeDirLogCheck.details);
     if (options.verbose === true) {
       const tmpfsInspection = inspectGatewayTmpfs(composePath, envPath);
       const prefixedMessage = `${tmpfsInspection.status}: ${tmpfsInspection.message}`;
       verboseInfo.push(prefixedMessage);
-      diagnostics.push({
+      doctorDiagnostics.push({
         title: "Runtime tmpfs inspection",
         content: prefixedMessage
       });
     }
   }
 
-  const canRunVerify = results.every((result) => result.status !== "FAIL");
+  const canRunVerify = doctorResults.every((result) => result.status !== "FAIL");
   try {
     if (canRunVerify) {
-      const verifySummary = verifyProfile(profileName, reportPath, {
+      const verifySummary = verifyProfile(profileName, securityReportPath, {
         ensureUp: options.noUp !== true,
         regenerateArtifacts: false,
         directIpPolicyOverride: options.directIpPolicyOverride
       });
-      results.push(...verifySummary.results);
-      diagnostics.push(...verifySummary.diagnostics);
+      securityReportWriteSucceeded = true;
+      if (verifySummary.failCount > 0) {
+        addDoctorResult(
+          "FAIL",
+          "Security verification",
+          `security-report.md contains failures (${verifySummary.passCount} PASS / ${verifySummary.warnCount} WARN / ${verifySummary.failCount} FAIL).`
+        );
+      } else if (verifySummary.warnCount > 0) {
+        addDoctorResult(
+          "WARN",
+          "Security verification",
+          `security-report.md contains warnings (${verifySummary.passCount} PASS / ${verifySummary.warnCount} WARN / ${verifySummary.failCount} FAIL).`
+        );
+      } else {
+        addDoctorResult(
+          "PASS",
+          "Security verification",
+          `security-report.md contains only PASS checks (${verifySummary.passCount} PASS).`
+        );
+      }
+      if (verifySummary.diagnostics.length > 0) {
+        doctorDiagnostics.push(...verifySummary.diagnostics);
+      }
     } else {
-      const hasTmpfsPermissionFailure = results.some(
+      const hasTmpfsPermissionFailure = doctorResults.some(
         (result) =>
           result.status === "FAIL" && result.name === "Gateway writable runtime dirs (canvas/cron)"
       );
-      addResult(
-        hasTmpfsPermissionFailure ? "WARN" : "FAIL",
-        "Verification checks execution",
-        "Skipped because one or more doctor preflight checks failed."
+      const skippedStatus: CheckResult["status"] = hasTmpfsPermissionFailure ? "WARN" : "FAIL";
+      const skippedDetails = "Skipped because one or more doctor preflight checks failed.";
+      addDoctorResult(
+        skippedStatus,
+        "Security verification",
+        `security-report.md not executed. ${skippedDetails}`
       );
+
+      const skippedSecurityResults: CheckResult[] = [
+        {
+          status: skippedStatus,
+          name: "Security verification",
+          details: skippedDetails
+        }
+      ];
+      const skippedReport = buildSecurityReportMarkdown(
+        profileName,
+        composePath,
+        skippedSecurityResults
+      );
+      fs.mkdirSync(path.dirname(securityReportPath), { recursive: true });
+      fs.writeFileSync(securityReportPath, skippedReport, "utf8");
+      securityReportWriteSucceeded = true;
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addResult("FAIL", "Verification checks execution", message);
+    addDoctorResult("FAIL", "Security verification", message);
     if (indicatesPermissionIssue(message)) {
       requiresSudo = true;
     }
   }
 
   try {
-    const report = buildSecurityReportMarkdown(profileName, composePath, results, diagnostics);
-    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-    fs.writeFileSync(reportPath, report, "utf8");
-    reportWriteSucceeded = true;
+    const report = buildDoctorReportMarkdown(
+      profileName,
+      composePath,
+      securityReportPath,
+      doctorResults,
+      doctorDiagnostics
+    );
+    fs.mkdirSync(path.dirname(doctorReportPath), { recursive: true });
+    fs.writeFileSync(doctorReportPath, report, "utf8");
+    doctorReportWriteSucceeded = true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    addResult("FAIL", "Report write", message);
+    addDoctorResult("FAIL", "Doctor report write", message);
     if (indicatesPermissionIssue(message)) {
       requiresSudo = true;
     }
   }
 
-  const { passCount, warnCount, failCount } = summarizeCheckResults(results);
-  for (const result of results) {
+  const { passCount, warnCount, failCount } = summarizeCheckResults(doctorResults);
+  for (const result of doctorResults) {
     if (indicatesPermissionIssue(result.details)) {
       requiresSudo = true;
       break;
@@ -395,8 +478,10 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
     passCount,
     warnCount,
     failCount,
-    reportPath,
-    reportWritten: reportWriteSucceeded,
+    reportPath: doctorReportPath,
+    reportWritten: doctorReportWriteSucceeded,
+    securityReportPath,
+    securityReportWritten: securityReportWriteSucceeded,
     version,
     commit,
     requiresSudo,

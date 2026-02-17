@@ -68,11 +68,14 @@ ocs install --profile research-only
 # Start the generated stack
 docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
 
-# Verify host + runtime controls and write a security report
+# Verify host + runtime controls and write reports
 sudo ocs doctor --profile research-only
 
-# Read the report
+# Read the security checks report
 cat out/research-only/security-report.md
+
+# Optional: read the preflight/orchestration report
+cat out/research-only/doctor-report.md
 ```
 
 Notes:
@@ -94,7 +97,8 @@ Notes:
    out/<profile>/
      .env
      docker-compose.yml
-     security-report.md   (after running doctor)
+     security-report.md   (security checks from doctor)
+     doctor-report.md     (doctor preflight + orchestration checks)
    ```
 
 3. You run Docker Compose using the generated `.env` + compose file.
@@ -125,11 +129,17 @@ Tip: if ports `18789/18790` are already in use, `ocs install` will auto-select f
 sudo ocs doctor --profile research-only --verbose
 ```
 
-It writes `out/<profile>/security-report.md` and prints a summary like:
+It writes:
+
+- `out/<profile>/security-report.md` (security checks)
+- `out/<profile>/doctor-report.md` (doctor preflight/orchestration checks)
+
+And prints a summary like:
 
 ```text
+Wrote doctor report to out/research-only/doctor-report.md
 Wrote security report to out/research-only/security-report.md
-PASS: 18  WARN: 2  FAIL: 0
+PASS: 10  WARN: 1  FAIL: 0
 ```
 
 If `doctor` reports any **FAIL**, treat the host as **not compliant** until fixed.

@@ -12,6 +12,7 @@ sudo ocs apply-firewall --profile research-only
 # cd out/research-only && docker compose --env-file .env up -d
 sudo ocs doctor --profile research-only
 cat out/research-only/security-report.md
+cat out/research-only/doctor-report.md
 ```
 
 Runtime tmpfs/writable check:

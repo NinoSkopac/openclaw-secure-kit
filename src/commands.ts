@@ -106,12 +106,19 @@ const doctorCommand: CommandHandler = (args) => {
     verbose
   });
 
-  const relativeReportPath = path.relative(process.cwd(), summary.reportPath) || summary.reportPath;
+  const relativeDoctorReportPath = path.relative(process.cwd(), summary.reportPath) || summary.reportPath;
+  const relativeSecurityReportPath =
+    path.relative(process.cwd(), summary.securityReportPath) || summary.securityReportPath;
   console.log(`Version: ${summary.version} (${summary.commit})`);
   if (summary.reportWritten) {
-    console.log(`Wrote security report to ${relativeReportPath}`);
+    console.log(`Wrote doctor report to ${relativeDoctorReportPath}`);
   } else {
-    console.log(`Could not write security report to ${relativeReportPath}`);
+    console.log(`Could not write doctor report to ${relativeDoctorReportPath}`);
+  }
+  if (summary.securityReportWritten) {
+    console.log(`Wrote security report to ${relativeSecurityReportPath}`);
+  } else {
+    console.log(`Could not write security report to ${relativeSecurityReportPath}`);
   }
   if (verbose && summary.verboseInfo.length > 0) {
     for (const infoLine of summary.verboseInfo) {
