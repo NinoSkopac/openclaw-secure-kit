@@ -125,14 +125,19 @@ const doctorCommand: CommandHandler = (args) => {
       console.log(infoLine);
     }
   }
-  console.log(`PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
+  console.log(`DOCTOR:   PASS: ${summary.passCount}  WARN: ${summary.warnCount}  FAIL: ${summary.failCount}`);
+  console.log(
+    `SECURITY: PASS: ${summary.securityPassCount}  WARN: ${summary.securityWarnCount}  FAIL: ${summary.securityFailCount}`
+  );
 
   if (shouldDoctorExit(summary) && summary.requiresSudo) {
     console.error("Some checks require elevated privileges. Re-run with sudo.");
   }
 
   if (shouldDoctorExit(summary)) {
-    throw new Error(`Doctor failed with ${summary.failCount} failing check(s).`);
+    throw new Error(
+      `Doctor failed (DOCTOR FAIL=${summary.failCount}, SECURITY FAIL=${summary.securityFailCount}).`
+    );
   }
 };
 

@@ -139,7 +139,8 @@ And prints a summary like:
 ```text
 Wrote doctor report to out/research-only/doctor-report.md
 Wrote security report to out/research-only/security-report.md
-PASS: 10  WARN: 1  FAIL: 0
+DOCTOR:   PASS: 10  WARN: 1  FAIL: 0
+SECURITY: PASS: 11  WARN: 1  FAIL: 0
 ```
 
 If `doctor` reports any **FAIL**, treat the host as **not compliant** until fixed.
