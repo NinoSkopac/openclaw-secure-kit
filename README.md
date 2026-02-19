@@ -24,6 +24,15 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 ---
 
+## Demo
+![Demo](assets/flow/demo.gif)
+### Config
+![Config](assets/flow/config.jpg)
+### Approved
+![Approved](assets/flow/approved.jpg)
+### Rejected
+![Rejected](assets/flow/rejected.jpg)
+
 ## Services (fastest path)
 
 This repo stays fully open-source. If you want a **hardened OpenClaw deployment on Ubuntu fast**, with a **verifiable security report**, use the services track:
@@ -32,7 +41,7 @@ This repo stays fully open-source. If you want a **hardened OpenClaw deployment 
 - **Managed updates (monthly)** — starting at **$299/mo**
 - **Custom profiles / policy tuning** — starting at **$1,500**
 
-Full details + scope: **[`docs/SERVICES.md`](docs/SERVICES.md)**  
+Full details + scope: **[`docs/SERVICES.md`](docs/SERVICES.md)**
 
 
 ## What you get
@@ -106,6 +115,9 @@ Notes:
   - teammates
   - clients
   - compliance/security reviewers
+
+### Architecture
+![arch.png](assets/arch.png)
 
 ---
 
@@ -197,11 +209,11 @@ sudo ./install.sh
 Common options:
 
 ```bash
-./install.sh --dry-run
-./install.sh --no-deps
-./install.sh --prefix /srv/openclaw-secure-kit
-./install.sh --force
-./install.sh --version
+sudo ./install.sh --dry-run
+sudo ./install.sh --no-deps
+sudo ./install.sh --prefix /srv/openclaw-secure-kit
+sudo ./install.sh --force
+sudo ./install.sh --version
 ```
 
 ### Curl | bash
@@ -213,9 +225,9 @@ curl -fsSL https://raw.githubusercontent.com/NinoSkopac/openclaw-secure-kit/refs
 ### Uninstall
 
 ```bash
-./uninstall.sh
-./uninstall.sh --purge
-./uninstall.sh --purge --prefix /srv/openclaw-secure-kit
+sudo ./uninstall.sh
+sudo ./uninstall.sh --purge
+sudo ./uninstall.sh --purge --prefix /srv/openclaw-secure-kit
 ```
 
 By default, `uninstall.sh` also tears down generated compose stacks found under `out/*/docker-compose.yml`.
