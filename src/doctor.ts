@@ -72,6 +72,36 @@ function shortError(result: CommandResult): string {
   return stderr || stdout || `exit code ${result.status ?? "unknown"}`;
 }
 
+export function findUsableOcsBuild(
+  cwd: string = process.cwd(),
+  invokedScript: string | undefined = process.argv[1],
+  distDir: string = __dirname,
+  exists: (target: string) => boolean = fs.existsSync
+): string | null {
+  const candidates: string[] = [];
+  const addCandidate = (candidate: string | undefined): void => {
+    if (!candidate) {
+      return;
+    }
+    const resolved = path.resolve(candidate);
+    if (!candidates.includes(resolved)) {
+      candidates.push(resolved);
+    }
+  };
+
+  addCandidate(path.join(cwd, "dist", "ocs.js"));
+  addCandidate(invokedScript);
+  addCandidate(path.join(distDir, "ocs.js"));
+
+  for (const candidate of candidates) {
+    if (exists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 function parseEnvFile(source: string): Record<string, string> {
   const env: Record<string, string> = {};
   const lines = source.split(/\r?\n/);
@@ -282,11 +312,15 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   let securityReportPath = path.join(outDir, "security-report.md");
   let doctorReportPath = path.join(outDir, "doctor-report.md");
 
-  const distPath = path.resolve(process.cwd(), "dist", "ocs.js");
-  if (fs.existsSync(distPath)) {
-    addDoctorResult("PASS", "Build sanity", "dist/ocs.js exists.");
+  const usableBuildPath = findUsableOcsBuild();
+  if (usableBuildPath !== null) {
+    addDoctorResult("PASS", "Build sanity", `ocs runtime found at ${usableBuildPath}.`);
   } else {
-    addDoctorResult("FAIL", "Build sanity", "dist/ocs.js not found. Run `npm run build` first.");
+    addDoctorResult(
+      "FAIL",
+      "Build sanity",
+      "No usable ocs runtime found (local dist missing and installed runtime unavailable). Run `npm run build` or `sudo ./install.sh`."
+    );
   }
 
   let profileLoaded = false;
@@ -468,7 +502,7 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
 
   const { passCount, warnCount, failCount } = summarizeCheckResults(doctorResults);
   for (const result of doctorResults) {
-    if (indicatesPermissionIssue(result.details)) {
+    if (result.status !== "PASS" && indicatesPermissionIssue(result.details)) {
       requiresSudo = true;
       break;
     }
