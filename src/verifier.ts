@@ -372,7 +372,7 @@ function runCheckGatewayToken(outDir: string): CheckResult {
   };
 }
 
-function runCheckGatewayTmpfsOverlay(compose: ComposeDoc): CheckResult {
+export function runCheckGatewayTmpfsOverlay(compose: ComposeDoc): CheckResult {
   const gatewayService = (compose.services?.["openclaw-gateway"] ?? null) as {
     tmpfs?: unknown[];
   } | null;
@@ -508,7 +508,7 @@ function runCheckComposeUsesGatewayTokenInterpolation(outDir: string, composePat
   };
 }
 
-function runCheckSelectedPorts(outDir: string, composePath: string): CheckResult {
+export function runCheckSelectedPorts(outDir: string, composePath: string): CheckResult {
   const envPath = path.join(outDir, ".env");
   if (!fs.existsSync(envPath)) {
     return {
@@ -594,7 +594,7 @@ function runCheckSelectedPorts(outDir: string, composePath: string): CheckResult
   };
 }
 
-function runCheckNoHardcodedComposePorts(composePath: string): CheckResult {
+export function runCheckNoHardcodedComposePorts(composePath: string): CheckResult {
   if (!fs.existsSync(composePath)) {
     return {
       name: "Compose has no hardcoded gateway/bridge literals",
@@ -1123,10 +1123,7 @@ export function verifyProfile(
 
   const results: CheckResult[] = [
     runCheckGatewayToken(outDir),
-    runCheckGatewayTmpfsOverlay(compose),
     runCheckComposeUsesGatewayTokenInterpolation(outDir, composePath),
-    runCheckSelectedPorts(outDir, composePath),
-    runCheckNoHardcodedComposePorts(composePath),
     runCheckPortExposure(compose, runtimeService, profile.openclaw.gateway.public_listen)
   ];
 

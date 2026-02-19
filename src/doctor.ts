@@ -8,6 +8,8 @@ import {
   buildSecurityReportMarkdown,
   CheckResult,
   ReportDiagnostic,
+  runCheckNoHardcodedComposePorts,
+  runCheckSelectedPorts,
   summarizeCheckResults,
   verifyProfile
 } from "./verifier";
@@ -387,6 +389,12 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
       "docker-compose.yml must use ${OPENCLAW_GATEWAY_TOKEN} and avoid embedding literal token values."
     );
   }
+
+  const selectedPortsCheck = runCheckSelectedPorts(outDir, composePath);
+  addDoctorResult(selectedPortsCheck.status, selectedPortsCheck.name, selectedPortsCheck.details);
+
+  const noHardcodedPortsCheck = runCheckNoHardcodedComposePorts(composePath);
+  addDoctorResult(noHardcodedPortsCheck.status, noHardcodedPortsCheck.name, noHardcodedPortsCheck.details);
 
   const composeConfig = runCompose(composePath, envPath, ["config"]);
   if (composeConfig.status === 0) {
