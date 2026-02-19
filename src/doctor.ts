@@ -28,6 +28,9 @@ export type DoctorSummary = {
   passCount: number;
   warnCount: number;
   failCount: number;
+  securityPassCount: number;
+  securityWarnCount: number;
+  securityFailCount: number;
   reportPath: string;
   reportWritten: boolean;
   securityReportPath: string;
@@ -38,8 +41,10 @@ export type DoctorSummary = {
   verboseInfo: string[];
 };
 
-export function shouldDoctorExit(summary: Pick<DoctorSummary, "failCount">): boolean {
-  return summary.failCount > 0;
+export function shouldDoctorExit(
+  summary: Pick<DoctorSummary, "failCount"> & Partial<Pick<DoctorSummary, "securityFailCount">>
+): boolean {
+  return summary.failCount > 0 || (summary.securityFailCount ?? 0) > 0;
 }
 
 const GATEWAY_RUNTIME_DIR_EACCES_PATTERN =
@@ -299,6 +304,9 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   let requiresSudo = false;
   let doctorReportWriteSucceeded = false;
   let securityReportWriteSucceeded = false;
+  let securityPassCount = 0;
+  let securityWarnCount = 0;
+  let securityFailCount = 0;
   const doctorResults: CheckResult[] = [];
   const doctorDiagnostics: ReportDiagnostic[] = [];
   const verboseInfo: string[] = [];
@@ -429,6 +437,9 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
         regenerateArtifacts: false,
         directIpPolicyOverride: options.directIpPolicyOverride
       });
+      securityPassCount = verifySummary.passCount;
+      securityWarnCount = verifySummary.warnCount;
+      securityFailCount = verifySummary.failCount;
       securityReportWriteSucceeded = true;
       if (verifySummary.failCount > 0) {
         addDoctorResult(
@@ -472,6 +483,10 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
           details: skippedDetails
         }
       ];
+      const skippedSummary = summarizeCheckResults(skippedSecurityResults);
+      securityPassCount = skippedSummary.passCount;
+      securityWarnCount = skippedSummary.warnCount;
+      securityFailCount = skippedSummary.failCount;
       const skippedReport = buildSecurityReportMarkdown(
         profileName,
         composePath,
@@ -484,6 +499,9 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     addDoctorResult("FAIL", "Security verification", message);
+    securityPassCount = 0;
+    securityWarnCount = 0;
+    securityFailCount = 1;
     if (indicatesPermissionIssue(message)) {
       requiresSudo = true;
     }
@@ -520,6 +538,9 @@ export function doctorProfile(profileName: string, options: DoctorOptions = {}):
     passCount,
     warnCount,
     failCount,
+    securityPassCount,
+    securityWarnCount,
+    securityFailCount,
     reportPath: doctorReportPath,
     reportWritten: doctorReportWriteSucceeded,
     securityReportPath,

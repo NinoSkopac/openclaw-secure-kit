@@ -52,4 +52,5 @@ test("doctor summary and exit behavior use shared counts", () => {
 
   assert.equal(shouldDoctorExit({ failCount: 0 }), false);
   assert.equal(shouldDoctorExit({ failCount: 1 }), true);
+  assert.equal(shouldDoctorExit({ failCount: 0, securityFailCount: 1 }), true);
 });
