@@ -218,6 +218,9 @@ curl -fsSL https://raw.githubusercontent.com/NinoSkopac/openclaw-secure-kit/refs
 ./uninstall.sh --purge --prefix /srv/openclaw-secure-kit
 ```
 
+By default, `uninstall.sh` also tears down generated compose stacks found under `out/*/docker-compose.yml`.
+Use `./uninstall.sh --no-down` to skip stack teardown.
+
 ---
 
 ## Troubleshooting

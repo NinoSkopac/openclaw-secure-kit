@@ -61,6 +61,13 @@ Remove wrapper only:
 ./uninstall.sh
 ```
 
+By default, uninstall also stops generated compose stacks under `out/*/docker-compose.yml`.
+Skip that behavior with `--no-down`:
+
+```bash
+./uninstall.sh --no-down
+```
+
 Remove wrapper + install prefix + runtime dirs:
 
 ```bash
