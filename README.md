@@ -8,7 +8,7 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 ---
 
 ## Table of contents
-
+- [Demo](#demo)
 - [Services (fastest path)](#services-fastest-path)
 - [What you get](#what-you-get)
 - [Quickstart](#quickstart)
