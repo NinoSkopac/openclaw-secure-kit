@@ -25,6 +25,7 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 ---
 
 ## Demo
+### Install
 ![Demo](assets/flow/demo.gif)
 ### Config
 ![Config](assets/flow/config.jpg)
