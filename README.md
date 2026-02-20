@@ -39,21 +39,11 @@ Every paid engagement includes `ocs doctor` and delivery of `security-report.md`
 ## Demo
 
 ![Demo](assets/flow/demo.gif)
-<style>
-  /* Desktop/tablet: 2-up */
-  .flow-img { width: 49%; height: auto; }
-
-  /* Phones: 1-up */
-  @media (max-width: 640px) {
-    .flow-img { width: 100%; }
-  }
-</style>
-
 <p align="left">
-  <img class="flow-img" src="assets/flow/configv2.jpg" alt="Config" />
-  <img class="flow-img" src="assets/flow/security-report.jpg" alt="Security report" />
-  <img class="flow-img" src="assets/flow/approved.jpg" alt="Approved" />
-  <img class="flow-img" src="assets/flow/rejected.jpg" alt="Rejected" />
+  <img src="assets/flow/configv2.jpg" alt="Config" width="49%" />
+  <img src="assets/flow/security-report.jpg" alt="Rejected" width="49%" />
+  <img src="assets/flow/approved.jpg" alt="Approved" width="49%" />
+  <img src="assets/flow/rejected.jpg" alt="Rejected" width="49%" />
 </p>
 
 ---
