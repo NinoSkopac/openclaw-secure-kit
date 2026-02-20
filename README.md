@@ -156,7 +156,7 @@ Notes:
   - compliance/security reviewers
 
 ### Architecture
-![arch.png](assets/arch.png)
+![arch.png](assets/arch.jpg)
 
 ---
 
