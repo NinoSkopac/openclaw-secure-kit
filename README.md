@@ -9,6 +9,20 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 ---
 
+## Who this is for
+
+- You need a hardened deployment posture you can reproduce across Ubuntu hosts using `out/<profile>/` artifacts.
+- You need verifier outputs (`security-report.md`) you can hand to security/IT reviewers and internal stakeholders.
+- You need DNS allowlist + host firewall guardrails without building your own hardening pipeline from scratch.
+
+## Who it’s not for
+
+- You need impossible-bypass outbound control guarantees (including guaranteed direct-to-IP blocking) in v1.
+- You need cloud provisioning, a multi-tenant control plane, or a web UI in this release.
+- You need ad-hoc manual setup instead of profile-driven, repeatable operations.
+
+---
+
 ## Need this deployed for your team?
 
 This repo stays fully open-source. Want a hardened OpenClaw environment set up quickly with a shareable verifier report?
@@ -68,6 +82,7 @@ Notes:
 - [Quickstart](#quickstart)
 - [Services (hire me)](#services-hire-me)
 - [Who this is for](#who-this-is-for)
+- [Who it’s not for](#who-its-not-for)
 - [Engagement workflow](#engagement-workflow)
 - [What you get](#what-you-get)
 - [How it works](#how-it-works)
@@ -98,12 +113,6 @@ What you get in paid scope:
 - verifier run (`ocs doctor`) and report handoff
 
 Full scope and pricing: **[`docs/SERVICES.md`](docs/SERVICES.md)**
-
-## Who this is for
-
-- teams running OpenClaw in customer or internal production workflows
-- founders who need a hardened baseline before delegating operations
-- operators who need repeatable checks and a shareable security report
 
 ## Engagement workflow
 
