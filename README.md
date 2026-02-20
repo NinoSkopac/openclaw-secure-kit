@@ -7,9 +7,27 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 ---
 
+## Need this deployed for your team?
+
+This repo stays fully open-source. If you want a hardened OpenClaw environment set up quickly, I provide paid services:
+
+- **Secure install (one-time)** from **$499**
+- **Managed updates (monthly)** from **$299/mo**
+- **Custom profiles / policy tuning** from **$1,500**
+
+Contact:
+- Email: `nino.skopac@gmail.com`
+- Upwork: https://www.upwork.com/freelancers/~013469808662f577d0
+
+Every paid engagement includes a verifier run and delivery of `security-report.md`.
+
+---
+
 ## Table of contents
+- [Services (hire me)](#services-hire-me)
+- [Who this is for](#who-this-is-for)
+- [Engagement workflow](#engagement-workflow)
 - [Demo](#demo)
-- [Services (fastest path)](#services-fastest-path)
 - [What you get](#what-you-get)
 - [Quickstart](#quickstart)
 - [How it works](#how-it-works)
@@ -19,10 +37,40 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 - [Install / uninstall](#install--uninstall)
 - [Troubleshooting](#troubleshooting)
 - [Docs](#docs)
+- [Contact](#contact)
 - [Contributing](#contributing)
 - [Security policy](#security-policy)
 
 ---
+
+## Services (hire me)
+
+Best for teams that want OpenClaw running on Ubuntu with security guardrails and a report they can hand to stakeholders.
+
+- **Secure install (one-time)** — starting at **$499**
+- **Managed updates (monthly)** — starting at **$299/mo**
+- **Custom profiles / policy tuning** — starting at **$1,500**
+
+What you get in paid scope:
+- profile-driven deployment generation under `out/<profile>/`
+- Docker Compose launch support on Ubuntu 22.04/24.04
+- DNS allowlist + host firewall policy alignment
+- verifier run (`ocs doctor`) and report handoff
+
+Full scope and pricing: **[`docs/SERVICES.md`](docs/SERVICES.md)**
+
+## Who this is for
+
+- teams running OpenClaw in customer or internal production workflows
+- founders who need a hardened baseline before delegating operations
+- operators who need repeatable checks and a shareable security report
+
+## Engagement workflow
+
+1. **Intake**: you share host details, use case, and required allowlist domains.
+2. **Implementation**: I deploy/tune profiles and produce `out/<profile>/` artifacts.
+3. **Verification**: we run `ocs doctor` and review `security-report.md` together.
+4. **Handoff or managed ops**: one-time delivery or monthly maintenance.
 
 ## Demo
 ### Install
@@ -33,16 +81,6 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 ![Approved](assets/flow/approved.jpg)
 ### Rejected
 ![Rejected](assets/flow/rejected.jpg)
-
-## Services (fastest path)
-
-This repo stays fully open-source. If you want a **hardened OpenClaw deployment on Ubuntu fast**, with a **verifiable security report**, use the services track:
-
-- **Secure install (one-time)** — starting at **$499**
-- **Managed updates (monthly)** — starting at **$299/mo**
-- **Custom profiles / policy tuning** — starting at **$1,500**
-
-Full details + scope: **[`docs/SERVICES.md`](docs/SERVICES.md)**
 
 
 ## What you get
@@ -273,6 +311,14 @@ sudo ocs doctor --profile research-only --verbose
 - Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
 - Hardening notes: [`docs/HARDENING.md`](docs/HARDENING.md)
 - Public release checklist: [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)
+
+---
+
+## Contact
+
+- Email: `nino.skopac@gmail.com`
+- Upwork: https://www.upwork.com/freelancers/~013469808662f577d0
+- Service scope and pricing: [`docs/SERVICES.md`](docs/SERVICES.md)
 
 ---
 
