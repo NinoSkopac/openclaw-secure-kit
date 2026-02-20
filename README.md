@@ -1,35 +1,75 @@
 # openclaw-secure-kit
 
-Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu with **verifiable egress controls**.
+Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu with **verifiable egress guardrails**.
 
 > This kit is designed to run **after** you have a host (Ubuntu + Docker), and **before** you start using OpenClaw in production.
 > It generates a hardened, reproducible deployment under `out/<profile>/` and provides a one-command verifier that writes a security report.
+>
+> Note: v1 focuses on DNS allowlisting + host firewall guardrails. It does not guarantee impossible-bypass outbound control (see `docs/THREAT_MODEL.md`).
 
 ---
 
 ## Need this deployed for your team?
 
-This repo stays fully open-source. If you want a hardened OpenClaw environment set up quickly, I provide paid services:
+This repo stays fully open-source. Want a hardened OpenClaw environment set up quickly with a shareable verifier report?
 
 - **Secure install (one-time)** from **$499**
 - **Managed updates (monthly)** from **$299/mo**
 - **Custom profiles / policy tuning** from **$1,500**
 
-Contact:
-- Email: `nino.skopac@gmail.com`
-- Upwork: https://www.upwork.com/freelancers/~013469808662f577d0
+Email `nino.skopac@gmail.com` or message me on [Upwork](https://www.upwork.com/freelancers/~013469808662f577d0).
+Every paid engagement includes `ocs doctor` and delivery of `security-report.md`.
 
-Every paid engagement includes a verifier run and delivery of `security-report.md`.
+---
+
+## Demo
+
+![Demo](assets/flow/demo.gif)
+<p align="left">
+  <img src="assets/flow/config.jpg" alt="Config" width="32%" />
+  <img src="assets/flow/approved.jpg" alt="Approved" width="32%" />
+  <img src="assets/flow/rejected.jpg" alt="Rejected" width="32%" />
+</p>
+
+---
+
+## Quickstart
+
+> **Why `sudo`?** The installer sets host controls (`systemd`/`nftables`) and installs to `/opt`.
+
+```bash
+git clone https://github.com/NinoSkopac/openclaw-secure-kit
+cd openclaw-secure-kit
+chmod +x install.sh
+
+sudo ./install.sh
+
+# Generate a hardened deployment under out/<profile>/
+ocs install --profile research-only
+
+# Start the generated stack
+docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
+
+# Verify host + runtime controls and write reports
+sudo ocs doctor --profile research-only
+
+# Read the security checks report
+cat out/research-only/security-report.md
+```
+
+Notes:
+
+- The generated `research-only` profile is **non-interactive by default** (no manual “setup” step required).
 
 ---
 
 ## Table of contents
+- [Demo](#demo)
+- [Quickstart](#quickstart)
 - [Services (hire me)](#services-hire-me)
 - [Who this is for](#who-this-is-for)
 - [Engagement workflow](#engagement-workflow)
-- [Demo](#demo)
 - [What you get](#what-you-get)
-- [Quickstart](#quickstart)
 - [How it works](#how-it-works)
 - [Profiles](#profiles)
 - [Verification (`ocs doctor`)](#verification-ocs-doctor)
@@ -72,17 +112,6 @@ Full scope and pricing: **[`docs/SERVICES.md`](docs/SERVICES.md)**
 3. **Verification**: we run `ocs doctor` and review `security-report.md` together.
 4. **Handoff or managed ops**: one-time delivery or monthly maintenance.
 
-## Demo
-### Install
-![Demo](assets/flow/demo.gif)
-### Config
-![Config](assets/flow/config.jpg)
-### Approved
-![Approved](assets/flow/approved.jpg)
-### Rejected
-![Rejected](assets/flow/rejected.jpg)
-
-
 ## What you get
 
 - **Profile-driven output** under `out/<profile>/`
@@ -96,43 +125,6 @@ Full scope and pricing: **[`docs/SERVICES.md`](docs/SERVICES.md)**
   - `openclaw-gateway` runs as `1000:1000` (`node` user)
 - **One-command verification**
   - `ocs doctor` produces a repeatable `security-report.md` with PASS/WARN/FAIL summary
-
----
-
-## Quickstart
-
-> **Why `sudo`?** The installer configures host dependencies and security controls (systemd / nftables) and installs to `/opt`, which requires root on Ubuntu.
-
-```bash
-git clone https://github.com/NinoSkopac/openclaw-secure-kit
-cd openclaw-secure-kit
-chmod +x install.sh
-
-sudo ./install.sh
-
-# Generate a hardened deployment under out/<profile>/
-ocs install --profile research-only
-
-# Start the generated stack
-docker compose -f out/research-only/docker-compose.yml --env-file out/research-only/.env up -d
-
-# Verify host + runtime controls and write reports
-sudo ocs doctor --profile research-only
-
-# Read the security checks report
-cat out/research-only/security-report.md
-
-# Optional: read the preflight/orchestration report
-cat out/research-only/doctor-report.md
-```
-
-Notes:
-
-- The generated `research-only` profile is **non-interactive by default** (no manual “setup” step required).
-- To avoid fresh-install bind-mount permission issues, runtime dirs:
-  - `/home/node/.openclaw/canvas`
-  - `/home/node/.openclaw/cron`
-    are mounted as **tmpfs overlays (ephemeral)**.
 
 ---
 
@@ -278,6 +270,8 @@ Use `./uninstall.sh --no-down` to skip stack teardown.
 ## Troubleshooting
 
 ### “I don’t see tmpfs mounts in `docker inspect ... .Mounts`”
+On fresh installs, `/home/node/.openclaw/canvas` and `/home/node/.openclaw/cron` are intentionally mounted as tmpfs overlays to avoid bind-mount permission issues.
+
 tmpfs entries don’t show up under `.Mounts`. Inspect `.HostConfig.Tmpfs` instead:
 
 ```bash
@@ -317,7 +311,7 @@ sudo ocs doctor --profile research-only --verbose
 ## Contact
 
 - Email: `nino.skopac@gmail.com`
-- Upwork: https://www.upwork.com/freelancers/~013469808662f577d0
+- Upwork: [nino-skopac](https://www.upwork.com/freelancers/~013469808662f577d0)
 - Service scope and pricing: [`docs/SERVICES.md`](docs/SERVICES.md)
 
 ---
