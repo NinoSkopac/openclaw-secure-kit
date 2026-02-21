@@ -55,6 +55,7 @@ test("profile network direct IP policy defaults and alias mapping", () => {
     }
   });
   assert.equal(strictAlias.network.direct_ip_policy, "fail");
+  assert.equal(strictAlias.network.egress_mode, "proxy-only");
 
   const legacyAddonKey = ProfileSchema.parse({
     openclaw: {

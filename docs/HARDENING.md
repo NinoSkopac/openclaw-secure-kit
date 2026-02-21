@@ -21,7 +21,7 @@ network:
   egress_mode: proxy-only
 ```
 
-Alias (equivalent):
+Alias (equivalent to setting both `direct_ip_policy: fail` and `egress_mode: proxy-only`):
 
 ```yaml
 network:

@@ -26,7 +26,7 @@ const NetworkSchema = z
     allow: network.allow,
     allow_ports: network.allow_ports,
     direct_ip_policy: network.strict_ip_egress === true ? "fail" : network.direct_ip_policy,
-    egress_mode: network.egress_mode
+    egress_mode: network.strict_ip_egress === true ? "proxy-only" : network.egress_mode
   }));
 
 export const ProfileSchema = z.object({
