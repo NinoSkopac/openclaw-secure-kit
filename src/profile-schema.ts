@@ -9,6 +9,7 @@ const DomainSchema = z
 
 const PortSchema = z.number().int().min(1).max(65535);
 const DirectIpPolicySchema = z.enum(["warn", "fail"]);
+const EgressModeSchema = z.enum(["dns-allowlist", "proxy-only"]);
 
 const NetworkSchema = z
   .object({
@@ -16,14 +17,16 @@ const NetworkSchema = z
     allow: z.array(DomainSchema).default([]),
     allow_ports: z.array(PortSchema).default([]),
     direct_ip_policy: DirectIpPolicySchema.default("warn"),
-    strict_ip_egress: z.boolean().optional()
+    strict_ip_egress: z.boolean().optional(),
+    egress_mode: EgressModeSchema.default("dns-allowlist")
   })
   .default({})
   .transform((network) => ({
     egress_default: network.egress_default,
     allow: network.allow,
     allow_ports: network.allow_ports,
-    direct_ip_policy: network.strict_ip_egress === true ? "fail" : network.direct_ip_policy
+    direct_ip_policy: network.strict_ip_egress === true ? "fail" : network.direct_ip_policy,
+    egress_mode: network.strict_ip_egress === true ? "proxy-only" : network.egress_mode
   }));
 
 export const ProfileSchema = z.object({

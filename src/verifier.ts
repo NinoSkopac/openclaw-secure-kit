@@ -923,6 +923,34 @@ function runCheckEgressAllowed(
   };
 }
 
+function runCheckHardenedEgressModeConfigured(
+  egressMode: "dns-allowlist" | "proxy-only",
+  directIpPolicy: "warn" | "fail"
+): CheckResult {
+  if (egressMode === "proxy-only") {
+    return {
+      name: "Hardened egress mode configured",
+      status: "PASS",
+      details: "network.egress_mode=proxy-only"
+    };
+  }
+
+  if (directIpPolicy === "fail") {
+    return {
+      name: "Hardened egress mode configured",
+      status: "FAIL",
+      details:
+        "network.direct_ip_policy=fail requires network.egress_mode=proxy-only for no-bypass guarantees."
+    };
+  }
+
+  return {
+    name: "Hardened egress mode configured",
+    status: "WARN",
+    details: "network.egress_mode=dns-allowlist (v1 mode); direct-to-IP bypass risk remains."
+  };
+}
+
 function runCheckDirectToIpHttpsReachable(
   composePath: string,
   runtimeService: string,
@@ -1160,6 +1188,7 @@ export function verifyProfile(
       runSkippedRuntimeCheck("DNS forced through dns_allowlist", reason),
       runSkippedRuntimeCheck("Egress blocked to non-allowlisted domains", reason),
       runSkippedRuntimeCheck("Egress works to allowlisted domains", reason),
+      runCheckHardenedEgressModeConfigured(profile.network.egress_mode, directIpPolicy),
       runSkippedRuntimeCheck("Direct-to-IP HTTPS reachable", reason)
     );
   } else if (gatewayMissingConfig && runtimeService) {
@@ -1179,6 +1208,7 @@ export function verifyProfile(
       runSkippedRuntimeCheck("DNS forced through dns_allowlist", reason),
       runSkippedRuntimeCheck("Egress blocked to non-allowlisted domains", reason),
       runSkippedRuntimeCheck("Egress works to allowlisted domains", reason),
+      runCheckHardenedEgressModeConfigured(profile.network.egress_mode, directIpPolicy),
       runSkippedRuntimeCheck("Direct-to-IP HTTPS reachable", reason)
     );
   } else if (!setupOk || !runtimeService || !runtimeRunning) {
@@ -1196,6 +1226,7 @@ export function verifyProfile(
       { name: "DNS forced through dns_allowlist", status: "FAIL", details: failureReason },
       { name: "Egress blocked to non-allowlisted domains", status: "FAIL", details: failureReason },
       { name: "Egress works to allowlisted domains", status: "FAIL", details: failureReason },
+      runCheckHardenedEgressModeConfigured(profile.network.egress_mode, directIpPolicy),
       { name: "Direct-to-IP HTTPS reachable", status: "FAIL", details: failureReason }
     );
   } else {
@@ -1207,6 +1238,7 @@ export function verifyProfile(
       runCheckDnsForced(composePath, compose, runtimeService as string),
       runCheckEgressBlocked(composePath, profile.network.allow, runtimeService as string),
       runCheckEgressAllowed(composePath, profile.network.allow, runtimeService as string),
+      runCheckHardenedEgressModeConfigured(profile.network.egress_mode, directIpPolicy),
       runCheckDirectToIpHttpsReachable(composePath, runtimeService as string, directIpPolicy)
     );
   }
