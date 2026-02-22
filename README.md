@@ -93,66 +93,6 @@ Notes:
 
 ---
 
-## Table of contents
-- [Demo](#demo)
-- [Quickstart](#quickstart)
-- [Services (hire me)](#services-hire-me)
-- [Who this is for](#who-this-is-for)
-- [Who it’s not for](#who-its-not-for)
-- [Engagement workflow](#engagement-workflow)
-- [What you get](#what-you-get)
-- [How it works](#how-it-works)
-- [Profiles](#profiles)
-- [Verification (`ocs doctor`)](#verification-ocs-doctor)
-- [Security model (and caveats)](#security-model-and-caveats)
-- [Install / uninstall](#install--uninstall)
-- [Troubleshooting](#troubleshooting)
-- [Docs](#docs)
-- [Contact](#contact)
-- [Contributing](#contributing)
-- [Security policy](#security-policy)
-
----
-
-## Services (hire me)
-
-Best for teams that want OpenClaw running on Ubuntu with security guardrails and a report they can hand to stakeholders.
-
-- **Secure install (one-time)** — starting at **$499**
-- **Managed updates (monthly)** — starting at **$299/mo**
-- **Custom profiles / policy tuning** — starting at **$1,500**
-
-What you get in paid scope:
-- profile-driven deployment generation under `out/<profile>/`
-- Docker Compose launch support on Ubuntu 22.04/24.04
-- DNS allowlist + host firewall policy alignment
-- verifier run (`ocs doctor`) and report handoff
-
-Full scope and pricing: **[`docs/SERVICES.md`](docs/SERVICES.md)**
-
-## Engagement workflow
-
-1. **Intake**: you share host details, use case, and required allowlist domains.
-2. **Implementation**: I deploy/tune profiles and produce `out/<profile>/` artifacts.
-3. **Verification**: we run `ocs doctor` and review `security-report.md` together.
-4. **Handoff or managed ops**: one-time delivery or monthly maintenance.
-
-## What you get
-
-- **Profile-driven output** under `out/<profile>/`
-  - externalized secrets (tokens live in `.env`, not baked into compose)
-  - pinned image tags (no `latest`)
-- **Egress guardrails**
-  - DNS allowlist policy + host firewall controls
-- **Loopback-first exposure**
-  - gateway binds to `127.0.0.1` by default (not publicly exposed)
-- **Non-root runtime**
-  - `openclaw-gateway` runs as `1000:1000` (`node` user)
-- **One-command verification**
-  - `ocs doctor` produces a repeatable `security-report.md` with PASS/WARN/FAIL summary
-
----
-
 ## How it works
 
 1. You choose a **profile** (example: `research-only`).
@@ -330,14 +270,6 @@ sudo ocs doctor --profile research-only --verbose
 - Install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
 - Hardening notes: [`docs/HARDENING.md`](docs/HARDENING.md)
 - Public release checklist: [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)
-
----
-
-## Contact
-
-- Email: `nino.skopac@gmail.com`
-- Upwork: [nino-skopac](https://www.upwork.com/freelancers/~013469808662f577d0)
-- Service scope and pricing: [`docs/SERVICES.md`](docs/SERVICES.md)
 
 ---
 
