@@ -9,6 +9,26 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 ---
 
+## Table of contents
+
+- [Who this is for](#who-this-is-for)
+- [Who it’s not for](#who-its-not-for)
+- [Need this deployed for your team?](#need-this-deployed-for-your-team)
+- [Demo](#demo)
+- [Quickstart](#quickstart)
+- [How it works](#how-it-works)
+- [Profiles](#profiles)
+- [Verification (`ocs doctor`)](#verification-ocs-doctor)
+- [Security model and caveats](#security-model-and-caveats)
+- [Install / uninstall](#install--uninstall)
+- [Troubleshooting](#troubleshooting)
+- [Docs](#docs)
+- [Contact](#contact)
+- [Contributing](#contributing)
+- [Security policy](#security-policy)
+
+---
+
 ## Who this is for
 
 - You need a hardened deployment posture you can reproduce across Ubuntu hosts using `out/<profile>/` artifacts.
@@ -27,12 +47,7 @@ Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu w
 
 This repo stays fully open-source. Want a hardened OpenClaw environment set up quickly with a shareable verifier report?
 
-- **Secure install (one-time)** from **$499**
-- **Managed updates (monthly)** from **$299/mo**
-- **Custom profiles / policy tuning** from **$1,500**
-
-Email `nino.skopac@gmail.com` or message me on [Upwork](https://www.upwork.com/freelancers/~013469808662f577d0).
-Every paid engagement includes `ocs doctor` and delivery of `security-report.md`.
+See **[`docs/SERVICES.md`](docs/SERVICES.md)**.
 
 ---
 
