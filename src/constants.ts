@@ -1,4 +1,6 @@
 export const OPENCLAW_DNS_RESOLVER_IP = "172.29.0.53";
+export const OPENCLAW_EGRESS_PROXY_IP = "172.29.0.54";
+export const OPENCLAW_EGRESS_PROXY_PORT = 3128;
 export const OPENCLAW_NETWORK_SUBNET = "172.29.0.0/24";
 export const OPENCLAW_IMAGE_DEFAULT = "ghcr.io/openclaw/openclaw";
 export const OPENCLAW_TAG_DEFAULT = "2026.2.13";

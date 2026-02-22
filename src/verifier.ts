@@ -5,6 +5,7 @@ import YAML from "yaml";
 
 import {
   OPENCLAW_DNS_RESOLVER_IP,
+  OPENCLAW_EGRESS_PROXY_PORT,
   OPENCLAW_FIREWALL_UNIT_NAME,
   OPENCLAW_RUNTIME_SERVICE_CANDIDATES
 } from "./constants";
@@ -200,6 +201,67 @@ function getOpenclawServiceNames(compose: ComposeDoc): string[] {
     (serviceName) => serviceName === "openclaw" || serviceName.startsWith("openclaw-")
   );
   return [...new Set(names)];
+}
+
+type ComposeServiceDoc = {
+  environment?: Record<string, unknown> | string[];
+  depends_on?: unknown;
+  volumes?: unknown[];
+};
+
+function getComposeService(compose: ComposeDoc, serviceName: string): ComposeServiceDoc | null {
+  const service = compose.services?.[serviceName];
+  if (!service || typeof service !== "object") {
+    return null;
+  }
+  return service as ComposeServiceDoc;
+}
+
+function getServiceEnvironment(service: ComposeServiceDoc | null): Record<string, string> {
+  if (!service) {
+    return {};
+  }
+
+  const rawEnvironment = service.environment;
+  if (Array.isArray(rawEnvironment)) {
+    const result: Record<string, string> = {};
+    for (const item of rawEnvironment) {
+      if (typeof item !== "string") {
+        continue;
+      }
+      const separator = item.indexOf("=");
+      if (separator <= 0) {
+        continue;
+      }
+      result[item.slice(0, separator)] = item.slice(separator + 1);
+    }
+    return result;
+  }
+
+  if (rawEnvironment && typeof rawEnvironment === "object") {
+    return Object.fromEntries(
+      Object.entries(rawEnvironment).map(([key, value]) => [key, String(value)])
+    );
+  }
+
+  return {};
+}
+
+function getServiceDependsOn(service: ComposeServiceDoc | null): string[] {
+  if (!service) {
+    return [];
+  }
+
+  const rawDependsOn = service.depends_on;
+  if (Array.isArray(rawDependsOn)) {
+    return rawDependsOn.map((value) => String(value));
+  }
+
+  if (rawDependsOn && typeof rawDependsOn === "object") {
+    return Object.keys(rawDependsOn as Record<string, unknown>);
+  }
+
+  return [];
 }
 
 function pickBlockedDomain(allowlist: string[]): string {
@@ -856,6 +918,90 @@ function runCheckDnsForced(composePath: string, compose: ComposeDoc, runtimeServ
   };
 }
 
+function runCheckProxyOnlyComposeWiring(compose: ComposeDoc, runtimeService: string | null): CheckResult {
+  const proxyServiceName = "egress-proxy";
+  const proxyUrl = `http://${proxyServiceName}:${OPENCLAW_EGRESS_PROXY_PORT}`;
+  const proxyService = getComposeService(compose, proxyServiceName);
+  if (!proxyService) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details: `${proxyServiceName} service missing from docker-compose.yml.`
+    };
+  }
+
+  const proxyVolumes = (proxyService.volumes ?? []).map((value) => String(value));
+  const hasProxyScriptMount = proxyVolumes.some((value) => value.includes("egress-proxy.js:/opt/ocs-egress-proxy.js"));
+  if (!hasProxyScriptMount) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details: `${proxyServiceName} must mount ./egress-proxy.js into /opt/ocs-egress-proxy.js.`
+    };
+  }
+
+  if (!runtimeService) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details: `No runtime service found. Expected one of: ${OPENCLAW_RUNTIME_SERVICE_CANDIDATES.join(", ")}`
+    };
+  }
+
+  const runtime = getComposeService(compose, runtimeService);
+  if (!runtime) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details: `${runtimeService} missing from docker-compose.yml.`
+    };
+  }
+
+  const runtimeEnvironment = getServiceEnvironment(runtime);
+  const missingRuntimeProxyVars = ["HTTP_PROXY", "HTTPS_PROXY"].filter(
+    (key) => runtimeEnvironment[key] !== proxyUrl
+  );
+  if (missingRuntimeProxyVars.length > 0) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details:
+        `${runtimeService} must set ${missingRuntimeProxyVars.join(", ")}=${proxyUrl}.`
+    };
+  }
+
+  const runtimeDependsOn = getServiceDependsOn(runtime);
+  if (!runtimeDependsOn.includes(proxyServiceName)) {
+    return {
+      name: "Proxy-only egress wiring",
+      status: "FAIL",
+      details: `${runtimeService} depends_on must include ${proxyServiceName}.`
+    };
+  }
+
+  const cliServiceName = "openclaw-cli";
+  const cliService = getComposeService(compose, cliServiceName);
+  if (cliService) {
+    const cliEnvironment = getServiceEnvironment(cliService);
+    const missingCliProxyVars = ["HTTP_PROXY", "HTTPS_PROXY"].filter(
+      (key) => cliEnvironment[key] !== proxyUrl
+    );
+    if (missingCliProxyVars.length > 0) {
+      return {
+        name: "Proxy-only egress wiring",
+        status: "FAIL",
+        details: `${cliServiceName} must set ${missingCliProxyVars.join(", ")}=${proxyUrl}.`
+      };
+    }
+  }
+
+  return {
+    name: "Proxy-only egress wiring",
+    status: "PASS",
+    details: `${runtimeService} and openclaw-cli use ${proxyUrl}; ${proxyServiceName} service is present.`
+  };
+}
+
 function runCheckEgressBlocked(
   composePath: string,
   allowlist: string[],
@@ -926,11 +1072,18 @@ function runCheckEgressAllowed(
 function runCheckDirectToIpHttpsReachable(
   composePath: string,
   runtimeService: string,
-  directIpPolicy: "warn" | "fail"
+  directIpPolicy: "warn" | "fail",
+  hardenedProxyOnly: boolean
 ): CheckResult {
   const target = "https://1.1.1.1";
-  const successStatus: CheckStatus = directIpPolicy === "fail" ? "FAIL" : "WARN";
-  const guidance = `${DIRECT_IP_WARN_TEXT} ${DIRECT_IP_HARDENING_TEXT}`;
+  const reachableStatus: CheckStatus = hardenedProxyOnly
+    ? "FAIL"
+    : directIpPolicy === "fail"
+      ? "FAIL"
+      : "WARN";
+  const guidance = hardenedProxyOnly
+    ? "Proxy-only mode requires direct-to-IP HTTPS without proxy to fail. Re-apply firewall if this check is reachable."
+    : `${DIRECT_IP_WARN_TEXT} ${DIRECT_IP_HARDENING_TEXT}`;
 
   const hasCurl = runCompose(composePath, [
     "exec",
@@ -942,31 +1095,45 @@ function runCheckDirectToIpHttpsReachable(
   ]);
 
   if (hasCurl.status === 0) {
-    const directResult = runCompose(composePath, [
-      "exec",
-      "-T",
-      runtimeService,
-      "curl",
-      "-k",
-      "-I",
-      "--max-time",
-      "10",
-      target
-    ]);
+    const directResult = hardenedProxyOnly
+      ? runCompose(composePath, [
+          "exec",
+          "-T",
+          runtimeService,
+          "sh",
+          "-lc",
+          `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy curl -k -I --noproxy '*' --max-time 10 ${target}`
+        ])
+      : runCompose(composePath, [
+          "exec",
+          "-T",
+          runtimeService,
+          "curl",
+          "-k",
+          "-I",
+          "--max-time",
+          "10",
+          target
+        ]);
 
     if (directResult.status === 0) {
       return {
         name: "Direct-to-IP HTTPS reachable",
-        status: successStatus,
+        status: reachableStatus,
         details:
-          `${guidance} Policy=${directIpPolicy}. Method=${runtimeService} curl to ${target} succeeded.`
+          `${guidance} Policy=${directIpPolicy}. Method=${runtimeService} ${
+            hardenedProxyOnly ? "curl with --noproxy '*'" : "curl"
+          } to ${target} succeeded.`
       };
     }
 
     return {
       name: "Direct-to-IP HTTPS reachable",
       status: "PASS",
-      details: `${runtimeService} curl to ${target} failed (${shortError(directResult)})`
+      details:
+        `${runtimeService} ${
+          hardenedProxyOnly ? "curl with --noproxy '*'" : "curl"
+        } to ${target} failed (${shortError(directResult)})`
     };
   }
 
@@ -1004,7 +1171,7 @@ function runCheckDirectToIpHttpsReachable(
   if (fallbackResult.status === 0) {
     return {
       name: "Direct-to-IP HTTPS reachable",
-      status: successStatus,
+      status: reachableStatus,
       details:
         `${guidance} Policy=${directIpPolicy}. Method=fallback curlimages/curl on network '${networkResult.network}' to ${target} succeeded.`
     };
@@ -1099,6 +1266,7 @@ export function verifyProfile(
 ): VerifyProfileSummary {
   const profile = loadProfile(profileName);
   const directIpPolicy = options.directIpPolicyOverride ?? profile.network.direct_ip_policy;
+  const hardenedProxyOnly = profile.network.hardened_egress_mode === "proxy-only";
   const outDir =
     options.regenerateArtifacts === false
       ? path.resolve(process.cwd(), "out", profileName)
@@ -1126,6 +1294,9 @@ export function verifyProfile(
     runCheckComposeUsesGatewayTokenInterpolation(outDir, composePath),
     runCheckPortExposure(compose, runtimeService, profile.openclaw.gateway.public_listen)
   ];
+  if (hardenedProxyOnly) {
+    results.push(runCheckProxyOnlyComposeWiring(compose, runtimeService));
+  }
 
   const gatewayDiagnosis = getGatewayLogDiagnosis(composePath, compose, runtimeService);
   const gatewayMissingConfig = gatewayDiagnosis.missingConfig;
@@ -1207,7 +1378,12 @@ export function verifyProfile(
       runCheckDnsForced(composePath, compose, runtimeService as string),
       runCheckEgressBlocked(composePath, profile.network.allow, runtimeService as string),
       runCheckEgressAllowed(composePath, profile.network.allow, runtimeService as string),
-      runCheckDirectToIpHttpsReachable(composePath, runtimeService as string, directIpPolicy)
+      runCheckDirectToIpHttpsReachable(
+        composePath,
+        runtimeService as string,
+        directIpPolicy,
+        hardenedProxyOnly
+      )
     );
   }
 

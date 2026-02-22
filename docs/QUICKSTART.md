@@ -58,6 +58,21 @@ Or run one-off strict verification from CLI:
 sudo ocs doctor --profile research-only --strict-ip-egress
 ```
 
-See `docs/HARDENING.md` for hardened egress guidance (coming next).
+To enforce proxy-only egress (blocks direct outbound path when firewall is applied), add:
+
+```yaml
+network:
+  hardened_egress_mode: proxy-only
+```
+
+Then run:
+
+```bash
+ocs install --profile research-only
+sudo ocs apply-firewall --profile research-only
+sudo ocs doctor --profile research-only --strict-ip-egress
+```
+
+See `docs/HARDENING.md` for details.
 
 If doctor reports any `FAIL`, address those findings before treating the host as compliant.

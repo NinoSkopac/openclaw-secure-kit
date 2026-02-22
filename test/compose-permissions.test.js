@@ -47,6 +47,33 @@ test("generated compose runs openclaw-gateway as node and mounts persistent stat
   assert.equal(hasStateMount, true, "openclaw-gateway should mount persistent state at /home/node/.openclaw");
 });
 
+test("proxy-only mode generates egress proxy service and proxy env wiring", () => {
+  ensureDistBuilt();
+
+  const { loadProfile } = require("../dist/profile-loader.js");
+  const { writeInstallArtifacts } = require("../dist/install-artifacts.js");
+  const profile = loadProfile("research-only");
+  profile.network.hardened_egress_mode = "proxy-only";
+  const artifacts = writeInstallArtifacts("research-only-proxy-test", profile, {
+    autoGenerateGatewayToken: false,
+    autoAdjustPorts: false
+  });
+
+  const composePath = path.join(artifacts.outDir, "docker-compose.yml");
+  const compose = YAML.parse(fs.readFileSync(composePath, "utf8"));
+  const egressProxy = compose?.services?.["egress-proxy"];
+  assert.ok(egressProxy, "egress-proxy service should exist in proxy-only mode");
+
+  const gateway = compose?.services?.["openclaw-gateway"];
+  assert.ok(gateway, "openclaw-gateway service should exist");
+  const gatewayEnvironment = gateway.environment || {};
+  assert.equal(gatewayEnvironment.HTTP_PROXY, "http://egress-proxy:3128");
+  assert.equal(gatewayEnvironment.HTTPS_PROXY, "http://egress-proxy:3128");
+
+  const proxyScriptPath = path.join(artifacts.outDir, "egress-proxy.js");
+  assert.equal(fs.existsSync(proxyScriptPath), true, "proxy-only mode should write egress-proxy.js");
+});
+
 test("verifier non-root logic is generic and does not hardcode uid 65532", () => {
   const verifierSource = fs.readFileSync(path.join(repoRoot, "src", "verifier.ts"), "utf8");
   assert.equal(/\b65532\b/.test(verifierSource), false);

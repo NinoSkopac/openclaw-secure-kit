@@ -3,6 +3,7 @@
 ## What v1 guarantees
 
 - Domain-level egress control through DNS allowlist policy plus host firewall controls.
+- Optional proxy-only hardened egress mode through local `egress-proxy` when enabled in profile and applied via firewall.
 - OpenClaw UI is not publicly exposed by default (no broad public bind).
 - OpenClaw container runs as a non-root user.
 
@@ -20,6 +21,6 @@
 
 ## How to harden further (v2)
 
-1. Force all egress through an egress proxy (for example HTTP CONNECT/SNI-aware filtering) and block direct outbound flows.
+1. Add deeper proxy policy controls (for example TLS SNI-aware filtering, per-service policy, and richer audit logs).
 2. Apply outbound IP allowlists with maintained destination sets aligned to approved services.
 3. Use a dedicated egress gateway or service-mesh pattern to centralize and enforce outbound policy.

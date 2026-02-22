@@ -8,7 +8,7 @@
 
 ## v2
 
-- true no-bypass egress model (proxy-only outbound path)
+- deeper no-bypass egress controls (beyond proxy-only baseline)
 - hardened egress policy packs and operational tooling
 - multi-tenant broker exploration
 

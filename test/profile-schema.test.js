@@ -34,6 +34,7 @@ test("profile network direct IP policy defaults and alias mapping", () => {
     }
   });
   assert.equal(defaults.network.direct_ip_policy, "warn");
+  assert.equal(defaults.network.hardened_egress_mode, "disabled");
 
   const strictAlias = ProfileSchema.parse({
     openclaw: {
@@ -44,6 +45,16 @@ test("profile network direct IP policy defaults and alias mapping", () => {
     }
   });
   assert.equal(strictAlias.network.direct_ip_policy, "fail");
+
+  const proxyOnlyAlias = ProfileSchema.parse({
+    openclaw: {
+      approvals: { exec: "require" }
+    },
+    network: {
+      proxy_only_egress: true
+    }
+  });
+  assert.equal(proxyOnlyAlias.network.hardened_egress_mode, "proxy-only");
 
   const legacyAddonKey = ProfileSchema.parse({
     openclaw: {
