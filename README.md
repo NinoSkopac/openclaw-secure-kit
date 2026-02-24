@@ -1,3 +1,4 @@
+[![CodeQL](https://github.com/NinoSkopac/openclaw-secure-kit/actions/workflows/codeql.yml/badge.svg)](https://github.com/NinoSkopac/openclaw-secure-kit/actions/workflows/codeql.yml)
 # openclaw-secure-kit
 
 Secure-by-default, **profile-driven hardening** for running OpenClaw on Ubuntu with **verifiable egress guardrails**.
