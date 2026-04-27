@@ -18,9 +18,10 @@ Set strict mode when you want direct-to-IP reachability to fail verification:
 ```yaml
 network:
   direct_ip_policy: fail
+  egress_mode: proxy-only
 ```
 
-Alias (equivalent):
+Alias (equivalent to setting both `direct_ip_policy: fail` and `egress_mode: proxy-only`):
 
 ```yaml
 network:
@@ -35,4 +36,18 @@ sudo ocs doctor --profile research-only --strict-ip-egress
 
 ## Hardened egress
 
-To actually block direct-to-IP, enable hardened egress mode (proxy-only egress). Detailed hardened egress implementation is coming next.
+Use `network.egress_mode` to declare the enforcement model:
+
+```yaml
+network:
+  egress_mode: dns-allowlist   # default v1 mode
+```
+
+For no-bypass posture, switch to proxy-only mode:
+
+```yaml
+network:
+  egress_mode: proxy-only
+```
+
+When `direct_ip_policy: fail` is set, `ocs doctor`/`ocs verify` now require `egress_mode: proxy-only` and will fail otherwise.

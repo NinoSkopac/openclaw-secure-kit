@@ -2,6 +2,7 @@ openclaw:
   approvals:
     exec: require
 network:
+  egress_mode: dns-allowlist
   allow:
     - arxiv.org
     - paperswithcode.com
